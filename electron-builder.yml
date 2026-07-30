@@ -1,0 +1,33 @@
+appId: com.revisionreader.desktop
+productName: 英语错句对照阅读器
+copyright: Copyright © 2026 Revision Reader
+electronVersion: 43.2.0
+directories:
+  app: desktop
+  output: outputs/windows
+files:
+  - main.cjs
+  - package.json
+  - icon.ico
+  - renderer/**/*
+asar: true
+win:
+  icon: desktop/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  artifactName: Revision-Reader-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: 英语错句对照阅读器
+  installerIcon: desktop/icon.ico
+  uninstallerIcon: desktop/icon.ico
+  installerHeaderIcon: desktop/icon.ico
