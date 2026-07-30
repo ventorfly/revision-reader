@@ -8,7 +8,8 @@ import { createServer, request as httpRequest } from "node:http";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const projectRoot = dirname(fileURLToPath(import.meta.url));
+const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const projectRoot = resolve(scriptDirectory, "..");
 const clientRoot = resolve(projectRoot, "dist", "client");
 const cliPath = join(projectRoot, "node_modules", "vinext", "dist", "cli.js");
 const host = "127.0.0.1";

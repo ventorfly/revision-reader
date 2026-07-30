@@ -46,6 +46,29 @@ type FormState = {
   createdAt: string;
 };
 
+type DesktopStorageResult = {
+  ok: boolean;
+  error?: string;
+};
+
+type DesktopBackupResult = DesktopStorageResult & {
+  savedAt?: string;
+};
+
+type DesktopBackupLoadResult = DesktopStorageResult & {
+  entries?: unknown;
+  savedAt?: string;
+};
+
+declare global {
+  interface Window {
+    revisionReaderStorage?: {
+      loadLatestBackup: () => Promise<DesktopBackupLoadResult>;
+      saveBackup: (entries: StudyEntry[]) => Promise<DesktopBackupResult>;
+    };
+  }
+}
+
 type DiffKind = "same" | "removed" | "added";
 
 type DiffSegment = {
@@ -121,6 +144,48 @@ const emptyForm = (): FormState => ({
   customTags: "",
   createdAt: new Date().toISOString().slice(0, 10),
 });
+
+function normalizeEntries(value: unknown): StudyEntry[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const normalized: StudyEntry[] = [];
+  for (const entry of value) {
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      !("id" in entry) ||
+      !("original" in entry) ||
+      !("changed" in entry) ||
+      !("note" in entry) ||
+      !("tags" in entry) ||
+      !("createdAt" in entry) ||
+      typeof entry.id !== "string" ||
+      typeof entry.original !== "string" ||
+      typeof entry.changed !== "string" ||
+      typeof entry.note !== "string" ||
+      !Array.isArray(entry.tags) ||
+      !entry.tags.every((tag) => typeof tag === "string") ||
+      typeof entry.createdAt !== "string"
+    ) {
+      return null;
+    }
+
+    normalized.push({
+      id: entry.id,
+      original: entry.original,
+      changed: entry.changed,
+      note: entry.note,
+      tags: [...entry.tags],
+      createdAt: entry.createdAt,
+      updatedAt:
+        "updatedAt" in entry && typeof entry.updatedAt === "string"
+          ? entry.updatedAt
+          : entry.createdAt,
+    });
+  }
+
+  return normalized;
+}
 
 function tokenize(text: string) {
   return (
@@ -250,30 +315,84 @@ export default function Home() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [toast, setToast] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const backupWarningShownRef = useRef(false);
 
   /* Client-only hydration avoids a server/client mismatch while restoring
      persisted entries after the first mount. */
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as StudyEntry[];
-        setEntries(Array.isArray(parsed) ? parsed : sampleEntries);
-      } else {
-        setEntries(sampleEntries);
+    let active = true;
+
+    const restoreEntries = async () => {
+      let restoredEntries: StudyEntry[] | null = null;
+      let recoveredFromBackup = false;
+
+      try {
+        const stored = window.localStorage.getItem(STORAGE_KEY);
+        if (stored !== null) {
+          restoredEntries = normalizeEntries(JSON.parse(stored));
+        }
+      } catch {
+        restoredEntries = null;
       }
-    } catch {
-      setEntries(sampleEntries);
-    } finally {
+
+      if (!restoredEntries && window.revisionReaderStorage) {
+        try {
+          const result =
+            await window.revisionReaderStorage.loadLatestBackup();
+          if (result.ok) {
+            restoredEntries = normalizeEntries(result.entries);
+            recoveredFromBackup = Boolean(restoredEntries);
+          }
+        } catch {
+          restoredEntries = null;
+        }
+      }
+
+      if (!active) return;
+      setEntries(restoredEntries ?? sampleEntries);
       setReady(true);
-    }
+      if (recoveredFromBackup) {
+        setToast("已从最近的自动备份恢复");
+      }
+    };
+
+    void restoreEntries();
+    return () => {
+      active = false;
+    };
   }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
-    if (ready) {
+    if (!ready) return;
+
+    let localStorageSaved = true;
+    try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    } catch {
+      localStorageSaved = false;
+    }
+
+    const desktopStorage = window.revisionReaderStorage;
+    if (desktopStorage) {
+      void desktopStorage
+        .saveBackup(entries)
+        .then((result) => {
+          if (result.ok && result.savedAt) return;
+
+          if (!backupWarningShownRef.current) {
+            backupWarningShownRef.current = true;
+            setToast("自动备份暂时未成功，请导出一份备份文件");
+          }
+        })
+        .catch(() => {
+          if (!backupWarningShownRef.current) {
+            backupWarningShownRef.current = true;
+            setToast("自动备份暂时未成功，请导出一份备份文件");
+          }
+        });
+    } else if (!localStorageSaved && !backupWarningShownRef.current) {
+      backupWarningShownRef.current = true;
+      setToast("本地保存失败，请立即导出备份文件");
     }
   }, [entries, ready]);
 
@@ -422,28 +541,43 @@ export default function Home() {
     if (!file) return;
 
     try {
-      const parsed = JSON.parse(await file.text()) as StudyEntry[];
-      const isValid =
-        Array.isArray(parsed) &&
-        parsed.every(
-          (entry) =>
-            typeof entry.id === "string" &&
-            typeof entry.original === "string" &&
-            typeof entry.changed === "string" &&
-            typeof entry.note === "string" &&
-            Array.isArray(entry.tags) &&
-            typeof entry.createdAt === "string",
-        );
+      const parsed = normalizeEntries(JSON.parse(await file.text()));
+      if (!parsed) throw new Error("Invalid data");
+      if (parsed.length === 0) {
+        setToast("备份文件中没有句子");
+        return;
+      }
 
-      if (!isValid) throw new Error("Invalid data");
+      const usedIds = new Set(entries.map((entry) => entry.id));
+      const importedEntries = parsed.map((entry) => {
+        if (!usedIds.has(entry.id)) {
+          usedIds.add(entry.id);
+          return entry;
+        }
+
+        let nextId = crypto.randomUUID();
+        while (usedIds.has(nextId)) {
+          nextId = crypto.randomUUID();
+        }
+        usedIds.add(nextId);
+        return { ...entry, id: nextId };
+      });
+
       if (
         entries.length > 0 &&
-        !window.confirm("导入会替换当前全部内容，是否继续？")
+        !window.confirm(
+          `将把 ${importedEntries.length} 组句子追加到现有 ${entries.length} 组句子后面，是否继续？`,
+        )
       ) {
         return;
       }
-      setEntries(parsed);
-      setToast(`已导入 ${parsed.length} 组句子`);
+
+      setEntries((current) => [...current, ...importedEntries]);
+      setToast(
+        `已追加 ${importedEntries.length} 组句子，共 ${
+          entries.length + importedEntries.length
+        } 组`,
+      );
     } catch {
       window.alert("无法导入：请选择由本应用导出的 JSON 文件。");
     } finally {

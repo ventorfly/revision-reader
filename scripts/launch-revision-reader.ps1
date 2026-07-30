@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 
-$projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
+$projectRoot = Split-Path -Parent $scriptDirectory
 $appUrl = "http://localhost:3000/"
 $workDir = Join-Path $projectRoot "work"
 $stdoutLog = Join-Path $workDir "shortcut-dev.out.log"
