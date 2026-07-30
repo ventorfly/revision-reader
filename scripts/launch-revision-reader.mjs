@@ -7,14 +7,15 @@ import {
   openSync,
 } from "node:fs";
 import { createConnection } from "node:net";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const projectRoot = dirname(fileURLToPath(import.meta.url));
+const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const projectRoot = resolve(scriptDirectory, "..");
 const workDir = join(projectRoot, "work");
 const serverLog = join(workDir, "shortcut-server.log");
 const statusLog = join(workDir, "shortcut-status.log");
-const localServerPath = join(projectRoot, "local-server.mjs");
+const localServerPath = join(scriptDirectory, "local-server.mjs");
 const host = "127.0.0.1";
 const port = 3000;
 const appUrl = `http://${host}:${port}/`;

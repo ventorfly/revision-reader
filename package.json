@@ -9,11 +9,11 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "desktop:renderer": "vite build --config vite.desktop.config.ts",
-    "desktop:package": "npm run desktop:renderer && electron-builder --config electron-builder.yml",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "desktop:renderer": "vite build --config config/vite.desktop.config.ts",
+    "desktop:package": "npm run desktop:renderer && electron-builder --config config/electron-builder.yml",
+    "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .vinext --ignore-pattern .wrangler --ignore-pattern desktop/renderer --ignore-pattern outputs --ignore-pattern work",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate --config config/drizzle.config.ts"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

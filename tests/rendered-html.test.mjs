@@ -38,11 +38,12 @@ test("server-renders the Revision Reader shell", async () => {
 });
 
 test("keeps the learning, local-storage, and responsive feature contracts", async () => {
-  const [page, css, layout, packageJson] = await Promise.all([
+  const [page, css, layout, packageJson, desktopMain] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../desktop/main.cjs", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /window\.localStorage\.getItem\(STORAGE_KEY\)/);
@@ -53,6 +54,10 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(page, /sampleEntries/);
   assert.match(page, /activeTag/);
   assert.match(page, /normalizedQuery/);
+  assert.match(page, /\[\.\.\.current, \.\.\.importedEntries\]/);
+  assert.match(page, /已追加 \$\{importedEntries\.length\} 组句子/);
+  assert.match(page, /if \(!usedIds\.has\(entry\.id\)\)/);
+  assert.doesNotMatch(page, /导入会替换当前全部内容/);
 
   assert.match(css, /\.comparison-card[\s\S]*grid-template-columns:/);
   assert.match(css, /@media \(max-width: 880px\)/);
@@ -64,6 +69,14 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(layout, /Revision Reader/);
   assert.doesNotMatch(layout, /Starter Project|codex-preview/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
+
+  assert.match(desktopMain, /new Tray\(/);
+  assert.match(desktopMain, /window\.on\("close"/);
+  assert.match(desktopMain, /event\.preventDefault\(\)/);
+  assert.match(desktopMain, /window\.hide\(\)/);
+  assert.match(desktopMain, /window\.setSkipTaskbar\(true\)/);
+  assert.match(desktopMain, /label: "退出"/);
+  assert.match(desktopMain, /app\.on\("before-quit"/);
 
   await assert.rejects(
     access(new URL("../app/_sites-preview/SkeletonPreview.tsx", import.meta.url)),

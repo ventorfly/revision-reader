@@ -7,6 +7,8 @@ directories:
   output: outputs/windows
 files:
   - main.cjs
+  - preload.cjs
+  - storage.cjs
   - package.json
   - icon.ico
   - renderer/**/*
@@ -20,14 +22,18 @@ win:
     - target: portable
       arch:
         - x64
-  artifactName: Revision-Reader-${version}-${arch}.${ext}
 nsis:
+  artifactName: Revision-Reader-Setup-${version}.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
   createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: 英语错句对照阅读器
   installerIcon: desktop/icon.ico
   uninstallerIcon: desktop/icon.ico
   installerHeaderIcon: desktop/icon.ico
+  include: build/windows/installer.nsh
+portable:
+  artifactName: Revision-Reader-Portable-${version}.${ext}
