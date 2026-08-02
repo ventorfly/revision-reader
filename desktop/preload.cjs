@@ -7,3 +7,10 @@ contextBridge.exposeInMainWorld("revisionReaderStorage", {
   saveBackup: (entries) =>
     ipcRenderer.invoke("revision-reader:save-backup", entries),
 });
+
+contextBridge.exposeInMainWorld("revisionReaderDesktop", {
+  checkForUpdates: () =>
+    ipcRenderer.invoke("revision-reader:check-for-updates"),
+  openUpdateDownload: (url) =>
+    ipcRenderer.invoke("revision-reader:open-update-download", url),
+});

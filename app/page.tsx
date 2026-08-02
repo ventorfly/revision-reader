@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowClockwise,
   ArrowDown,
   ArrowUp,
   BookOpenText,
@@ -60,11 +61,22 @@ type DesktopBackupLoadResult = DesktopStorageResult & {
   savedAt?: string;
 };
 
+type DesktopUpdateResult = DesktopStorageResult & {
+  currentVersion?: string;
+  latestVersion?: string;
+  updateAvailable?: boolean;
+  downloadUrl?: string;
+};
+
 declare global {
   interface Window {
     revisionReaderStorage?: {
       loadLatestBackup: () => Promise<DesktopBackupLoadResult>;
       saveBackup: (entries: StudyEntry[]) => Promise<DesktopBackupResult>;
+    };
+    revisionReaderDesktop?: {
+      checkForUpdates: () => Promise<DesktopUpdateResult>;
+      openUpdateDownload: (url: string) => Promise<DesktopStorageResult>;
     };
   }
 }
@@ -314,6 +326,7 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [toast, setToast] = useState("");
+  const [checkingForUpdates, setCheckingForUpdates] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backupWarningShownRef = useRef(false);
 
@@ -443,6 +456,50 @@ export default function Home() {
     setEditingId(null);
     setForm(emptyForm());
     setModalOpen(true);
+  };
+
+  const checkForUpdates = async () => {
+    if (checkingForUpdates) return;
+
+    const desktop = window.revisionReaderDesktop;
+    if (!desktop) {
+      window.open(
+        "https://github.com/ventorfly/revision-reader/releases/latest",
+        "_blank",
+        "noopener,noreferrer",
+      );
+      return;
+    }
+
+    setCheckingForUpdates(true);
+    try {
+      const result = await desktop.checkForUpdates();
+      if (!result.ok) {
+        setToast("暂时无法检查更新，请稍后再试");
+        return;
+      }
+
+      if (
+        result.updateAvailable &&
+        result.latestVersion &&
+        result.downloadUrl
+      ) {
+        const shouldDownload = window.confirm(
+          `发现新版本 v${result.latestVersion}。\n当前版本：v${result.currentVersion ?? "未知"}\n\n是否打开下载页面？`,
+        );
+        if (!shouldDownload) return;
+
+        const opened = await desktop.openUpdateDownload(result.downloadUrl);
+        if (!opened.ok) setToast("无法打开下载页面，请稍后再试");
+        return;
+      }
+
+      setToast(`已是最新版本 v${result.currentVersion ?? ""}`.trim());
+    } catch {
+      setToast("暂时无法检查更新，请稍后再试");
+    } finally {
+      setCheckingForUpdates(false);
+    }
   };
 
   const openEditEntry = (entry: StudyEntry) => {
@@ -592,8 +649,21 @@ export default function Home() {
           <div className="brand-mark" aria-hidden="true">
             <BookOpenText size={22} weight="duotone" />
           </div>
-          <div>
-            <h1>Revision Reader</h1>
+          <div className="brand-copy">
+            <div className="brand-title-row">
+              <h1>Revision Reader</h1>
+              <button
+                aria-label="检查软件更新"
+                className={`update-button${checkingForUpdates ? " checking" : ""}`}
+                disabled={checkingForUpdates}
+                onClick={() => void checkForUpdates()}
+                title="检查软件更新"
+                type="button"
+              >
+                <ArrowClockwise aria-hidden="true" size={13} weight="bold" />
+                {checkingForUpdates ? "检查中" : "检查更新"}
+              </button>
+            </div>
             <p>我的英语错句对照本</p>
           </div>
         </div>

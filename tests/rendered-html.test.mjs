@@ -38,13 +38,15 @@ test("server-renders the Revision Reader shell", async () => {
 });
 
 test("keeps the learning, local-storage, and responsive feature contracts", async () => {
-  const [page, css, layout, packageJson, desktopMain] = await Promise.all([
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
-    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../package.json", import.meta.url), "utf8"),
-    readFile(new URL("../desktop/main.cjs", import.meta.url), "utf8"),
-  ]);
+  const [page, css, layout, packageJson, desktopMain, desktopPreload] =
+    await Promise.all([
+      readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+      readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../package.json", import.meta.url), "utf8"),
+      readFile(new URL("../desktop/main.cjs", import.meta.url), "utf8"),
+      readFile(new URL("../desktop/preload.cjs", import.meta.url), "utf8"),
+    ]);
 
   assert.match(page, /window\.localStorage\.getItem\(STORAGE_KEY\)/);
   assert.match(page, /window\.localStorage\.setItem\(STORAGE_KEY/);
@@ -58,6 +60,8 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(page, /已追加 \$\{importedEntries\.length\} 组句子/);
   assert.match(page, /if \(!usedIds\.has\(entry\.id\)\)/);
   assert.doesNotMatch(page, /导入会替换当前全部内容/);
+  assert.match(page, /检查软件更新/);
+  assert.match(page, /desktop\.checkForUpdates\(\)/);
 
   assert.match(css, /\.comparison-card[\s\S]*grid-template-columns:/);
   assert.match(css, /@media \(max-width: 880px\)/);
@@ -65,6 +69,7 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(css, /\.diff-removed/);
   assert.match(css, /\.diff-added/);
   assert.doesNotMatch(css, /text-decoration:\s*line-through/);
+  assert.match(css, /\.update-button[\s\S]*font-size:\s*11px/);
   assert.match(css, /prefers-reduced-motion/);
 
   assert.match(layout, /Revision Reader/);
@@ -78,6 +83,12 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(desktopMain, /window\.setSkipTaskbar\(true\)/);
   assert.match(desktopMain, /label: "退出"/);
   assert.match(desktopMain, /app\.on\("before-quit"/);
+  assert.match(desktopMain, /app\.getVersion\(\)/);
+  assert.match(desktopMain, /revision-reader:check-for-updates/);
+  assert.match(desktopMain, /revision-reader:open-update-download/);
+  assert.match(desktopMain, /api\.github\.com\/repos\/ventorfly\/revision-reader/);
+  assert.match(desktopPreload, /revisionReaderDesktop/);
+  assert.match(desktopPreload, /revision-reader:check-for-updates/);
 
   await assert.rejects(
     access(new URL("../app/_sites-preview/SkeletonPreview.tsx", import.meta.url)),
