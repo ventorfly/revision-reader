@@ -563,9 +563,6 @@ textarea:focus-visible {
   background: var(--original-soft);
   box-shadow: inset 0 -1px 0 var(--original-line);
   color: #ff98aa;
-  text-decoration: line-through;
-  text-decoration-color: rgba(255, 152, 170, 0.55);
-  text-decoration-thickness: 1px;
 }
 
 .diff-added {

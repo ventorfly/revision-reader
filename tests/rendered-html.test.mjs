@@ -64,6 +64,7 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(css, /\.comparison-card\s*\{[\s\S]*grid-template-columns:\s*1fr/);
   assert.match(css, /\.diff-removed/);
   assert.match(css, /\.diff-added/);
+  assert.doesNotMatch(css, /text-decoration:\s*line-through/);
   assert.match(css, /prefers-reduced-motion/);
 
   assert.match(layout, /Revision Reader/);
