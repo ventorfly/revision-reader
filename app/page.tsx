@@ -445,7 +445,15 @@ export default function Home() {
           entry.tags.join(" "),
         ].some((field) => field.toLowerCase().includes(normalizedQuery));
       });
-    return sortNewest ? [...matchingEntries].reverse() : matchingEntries;
+    return matchingEntries
+      .map((entry, index) => ({ entry, index }))
+      .sort((a, b) => {
+        const dateOrder = a.entry.createdAt.localeCompare(b.entry.createdAt);
+        if (dateOrder !== 0) return sortNewest ? -dateOrder : dateOrder;
+
+        return sortNewest ? b.index - a.index : a.index - b.index;
+      })
+      .map(({ entry }) => entry);
   }, [activeTag, entries, query, sortNewest]);
 
   const openNewEntry = () => {
@@ -729,7 +737,7 @@ export default function Home() {
           type="button"
         >
           <CalendarBlank size={17} />
-          {sortNewest ? "最新在前" : "最早在前"}
+          日期：{sortNewest ? "最新在前" : "最早在前"}
           {sortNewest ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
         </button>
       </section>
