@@ -56,6 +56,8 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(page, /sampleEntries/);
   assert.match(page, /activeTag/);
   assert.match(page, /normalizedQuery/);
+  assert.match(page, /sortNewest \? \[\.\.\.matchingEntries\]\.reverse\(\)/);
+  assert.doesNotMatch(page, /createdAt\.localeCompare/);
   assert.match(page, /\[\.\.\.current, \.\.\.importedEntries\]/);
   assert.match(page, /已追加 \$\{importedEntries\.length\} 组句子/);
   assert.match(page, /if \(!usedIds\.has\(entry\.id\)\)/);

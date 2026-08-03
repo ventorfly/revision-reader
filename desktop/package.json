@@ -1,6 +1,6 @@
 {
   "name": "revision-reader-desktop",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "本地优先的英语错句对照阅读器",
   "main": "main.cjs",
   "author": "Revision Reader",

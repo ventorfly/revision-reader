@@ -434,7 +434,7 @@ export default function Home() {
 
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return [...entries]
+    const matchingEntries = entries
       .filter((entry) => activeTag === "全部" || entry.tags.includes(activeTag))
       .filter((entry) => {
         if (!normalizedQuery) return true;
@@ -444,12 +444,8 @@ export default function Home() {
           entry.note,
           entry.tags.join(" "),
         ].some((field) => field.toLowerCase().includes(normalizedQuery));
-      })
-      .sort((a, b) =>
-        sortNewest
-          ? b.createdAt.localeCompare(a.createdAt)
-          : a.createdAt.localeCompare(b.createdAt),
-      );
+      });
+    return sortNewest ? [...matchingEntries].reverse() : matchingEntries;
   }, [activeTag, entries, query, sortNewest]);
 
   const openNewEntry = () => {
