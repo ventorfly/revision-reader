@@ -350,21 +350,144 @@ textarea:focus-visible {
   color: #e1e4ea;
 }
 
+.filter-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.date-filter {
+  position: relative;
+}
+
+.date-filter-button,
 .sort-button {
   align-items: center;
   background: transparent;
-  border: 0;
   color: var(--muted);
   cursor: pointer;
   display: flex;
   flex: 0 0 auto;
   font-size: 12px;
   gap: 6px;
-  padding: 7px 2px 7px 12px;
+  white-space: nowrap;
+}
+
+.date-filter-button {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  min-height: 34px;
+  padding: 7px 9px;
+}
+
+.date-filter-button:hover,
+.date-filter-button.open {
+  background: rgba(124, 105, 255, 0.08);
+  border-color: rgba(144, 127, 255, 0.52);
+  color: #d9d5ff;
+}
+
+.date-filter-button > svg:last-child {
+  transition: transform 160ms ease;
+}
+
+.date-filter-button > svg:last-child.open {
+  transform: rotate(180deg);
+}
+
+.sort-button {
+  border: 0;
+  padding: 7px 2px 7px 4px;
 }
 
 .sort-button:hover {
   color: var(--text);
+}
+
+.date-filter-menu {
+  background: #13171e;
+  border: 1px solid #343b48;
+  border-radius: 10px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
+  max-height: min(440px, calc(100dvh - 145px));
+  min-width: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  scrollbar-color: #434b5a transparent;
+  scrollbar-width: thin;
+  top: calc(100% + 7px);
+  z-index: 80;
+}
+
+.date-filter-title,
+.date-filter-section {
+  color: var(--subtle);
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 6px 10px;
+}
+
+.date-filter-section {
+  border-top: 1px solid var(--line);
+  margin-top: 5px;
+  padding-top: 11px;
+}
+
+.date-filter-menu button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: #c9ced7;
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 0 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.date-filter-menu button:hover {
+  background: #1a1f28;
+  color: var(--text);
+}
+
+.date-filter-menu button.selected {
+  background: rgba(124, 105, 255, 0.14);
+  color: #e7e3ff;
+}
+
+.date-filter-option {
+  align-items: center;
+  display: flex;
+  gap: 3px;
+}
+
+.date-filter-check {
+  align-items: center;
+  color: #aaa0ff;
+  display: inline-flex;
+  height: 18px;
+  justify-content: center;
+  width: 18px;
+}
+
+.date-filter-count {
+  color: var(--subtle);
+  font-variant-numeric: tabular-nums;
+  margin-left: 18px;
+}
+
+.date-filter-menu button.selected .date-filter-count {
+  color: #aaa4c8;
 }
 
 .reader-shell {
@@ -984,9 +1107,16 @@ input::placeholder {
     padding: 7px 16px;
   }
 
-  .sort-button {
+  .filter-actions {
     align-self: flex-end;
+  }
+
+  .sort-button {
     padding-right: 2px;
+  }
+
+  .date-filter-menu {
+    max-width: calc(100vw - 32px);
   }
 
   .reader-shell {
