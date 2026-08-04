@@ -6,6 +6,7 @@ import {
   ArrowUp,
   BookOpenText,
   CalendarBlank,
+  CaretDown,
   Check,
   DownloadSimple,
   FileArrowUp,
@@ -321,6 +322,8 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState("全部");
+  const [activeDate, setActiveDate] = useState<string | null>(null);
+  const [dateMenuOpen, setDateMenuOpen] = useState(false);
   const [sortNewest, setSortNewest] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -328,6 +331,7 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [checkingForUpdates, setCheckingForUpdates] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dateFilterRef = useRef<HTMLDivElement>(null);
   const backupWarningShownRef = useRef(false);
 
   /* Client-only hydration avoids a server/client mismatch while restoring
@@ -424,6 +428,29 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [modalOpen]);
 
+  useEffect(() => {
+    if (!dateMenuOpen) return;
+
+    const closeWhenClickingOutside = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !dateFilterRef.current?.contains(event.target)
+      ) {
+        setDateMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDateMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeWhenClickingOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeWhenClickingOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [dateMenuOpen]);
+
   const allTags = useMemo(
     () =>
       Array.from(
@@ -432,10 +459,23 @@ export default function Home() {
     [entries],
   );
 
+  const dateOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    entries.forEach((entry) => {
+      if (!entry.createdAt) return;
+      counts.set(entry.createdAt, (counts.get(entry.createdAt) ?? 0) + 1);
+    });
+
+    return Array.from(counts, ([date, count]) => ({ date, count })).sort(
+      (left, right) => right.date.localeCompare(left.date),
+    );
+  }, [entries]);
+
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const matchingEntries = entries
       .filter((entry) => activeTag === "全部" || entry.tags.includes(activeTag))
+      .filter((entry) => !activeDate || entry.createdAt === activeDate)
       .filter((entry) => {
         if (!normalizedQuery) return true;
         return [
@@ -454,7 +494,18 @@ export default function Home() {
         return sortNewest ? b.index - a.index : a.index - b.index;
       })
       .map(({ entry }) => entry);
-  }, [activeTag, entries, query, sortNewest]);
+  }, [activeDate, activeTag, entries, query, sortNewest]);
+
+  const chooseDate = (date: string | null) => {
+    setActiveDate(date);
+    setDateMenuOpen(false);
+  };
+
+  const clearFilters = () => {
+    setQuery("");
+    setActiveTag("全部");
+    setActiveDate(null);
+  };
 
   const openNewEntry = () => {
     setEditingId(null);
@@ -532,6 +583,17 @@ export default function Home() {
     const now = new Date().toISOString().slice(0, 10);
 
     if (editingId) {
+      const editingEntry = entries.find((entry) => entry.id === editingId);
+      if (
+        editingEntry &&
+        activeDate === editingEntry.createdAt &&
+        form.createdAt !== editingEntry.createdAt &&
+        entries.filter((entry) => entry.createdAt === editingEntry.createdAt)
+          .length === 1
+      ) {
+        setActiveDate(null);
+      }
+
       setEntries((current) =>
         current.map((entry) =>
           entry.id === editingId
@@ -569,6 +631,12 @@ export default function Home() {
 
   const deleteEntry = (entry: StudyEntry) => {
     if (!window.confirm(`确定删除这组句子吗？\n\n${entry.original}`)) return;
+    if (
+      activeDate === entry.createdAt &&
+      entries.filter((item) => item.createdAt === entry.createdAt).length === 1
+    ) {
+      setActiveDate(null);
+    }
     setEntries((current) => current.filter((item) => item.id !== entry.id));
     setToast("已删除");
   };
@@ -731,15 +799,92 @@ export default function Home() {
             </button>
           ))}
         </div>
-        <button
-          className="sort-button"
-          onClick={() => setSortNewest((current) => !current)}
-          type="button"
-        >
-          <CalendarBlank size={17} />
-          日期：{sortNewest ? "最新在前" : "最早在前"}
-          {sortNewest ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
-        </button>
+        <div className="filter-actions">
+          <div className="date-filter" ref={dateFilterRef}>
+            <button
+              aria-controls="date-filter-menu"
+              aria-expanded={dateMenuOpen}
+              aria-haspopup="menu"
+              className={`date-filter-button${dateMenuOpen ? " open" : ""}`}
+              onClick={() => setDateMenuOpen((current) => !current)}
+              type="button"
+            >
+              <CalendarBlank aria-hidden="true" size={17} />
+              显示：{activeDate ?? "全部句子"}
+              <CaretDown
+                aria-hidden="true"
+                className={dateMenuOpen ? "open" : ""}
+                size={13}
+                weight="bold"
+              />
+            </button>
+
+            {dateMenuOpen && (
+              <div
+                aria-label="选择句子显示范围"
+                className="date-filter-menu"
+                id="date-filter-menu"
+                role="menu"
+              >
+                <span className="date-filter-title">显示范围</span>
+                <button
+                  className={activeDate === null ? "selected" : ""}
+                  onClick={() => chooseDate(null)}
+                  role="menuitemradio"
+                  type="button"
+                  aria-checked={activeDate === null}
+                >
+                  <span className="date-filter-option">
+                    <span className="date-filter-check">
+                      {activeDate === null && <Check size={14} weight="bold" />}
+                    </span>
+                    全部句子
+                  </span>
+                  <span className="date-filter-count">{entries.length} 条</span>
+                </button>
+
+                <span className="date-filter-section">按日期</span>
+                {dateOptions.map((dateOption) => (
+                  <button
+                    aria-checked={activeDate === dateOption.date}
+                    className={
+                      activeDate === dateOption.date ? "selected" : ""
+                    }
+                    key={dateOption.date}
+                    onClick={() => chooseDate(dateOption.date)}
+                    role="menuitemradio"
+                    type="button"
+                  >
+                    <span className="date-filter-option">
+                      <span className="date-filter-check">
+                        {activeDate === dateOption.date && (
+                          <Check size={14} weight="bold" />
+                        )}
+                      </span>
+                      {dateOption.date}
+                    </span>
+                    <span className="date-filter-count">
+                      {dateOption.count} 条
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            className="sort-button"
+            onClick={() => {
+              setDateMenuOpen(false);
+              setSortNewest((current) => !current);
+            }}
+            type="button"
+          >
+            <CalendarBlank size={17} />
+            日期：{sortNewest ? "最新在前" : "最早在前"}
+            {sortNewest ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
+          </button>
+        </div>
       </section>
 
       <section className="reader-shell">
@@ -770,8 +915,8 @@ export default function Home() {
             <div className="empty-state">
               <MagnifyingGlass size={28} />
               <strong>没有找到匹配的句子</strong>
-              <span>试试其他关键词或标签。</span>
-              <button onClick={() => setQuery("")} type="button">
+              <span>试试其他关键词、标签或日期。</span>
+              <button onClick={clearFilters} type="button">
                 清除筛选
               </button>
             </div>

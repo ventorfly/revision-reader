@@ -43,3 +43,5 @@ desktop/renderer/
 /.wrangler/
 /outputs/
 /work/
+/design-audit/
+/design-qa.md

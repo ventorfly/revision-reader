@@ -55,6 +55,14 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(page, /`diff-\$\{segment\.kind\}`/);
   assert.match(page, /sampleEntries/);
   assert.match(page, /activeTag/);
+  assert.match(page, /activeDate/);
+  assert.match(page, /dateMenuOpen/);
+  assert.match(page, /const dateOptions = useMemo/);
+  assert.match(page, /entry\.createdAt === activeDate/);
+  assert.match(page, /显示：\{activeDate \?\? "全部句子"\}/);
+  assert.match(page, /按日期/);
+  assert.match(page, /dateOption\.count\} 条/);
+  assert.match(page, /aria-haspopup="menu"/);
   assert.match(page, /normalizedQuery/);
   assert.match(page, /createdAt\.localeCompare/);
   assert.match(page, /sortNewest \? b\.index - a\.index : a\.index - b\.index/);
@@ -73,6 +81,10 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(css, /\.diff-added/);
   assert.doesNotMatch(css, /text-decoration:\s*line-through/);
   assert.match(css, /\.update-button[\s\S]*font-size:\s*11px/);
+  assert.match(css, /\.date-filter-menu/);
+  assert.match(css, /max-height:\s*min\(440px, calc\(100dvh - 145px\)\)/);
+  assert.match(css, /overflow-y:\s*auto/);
+  assert.match(css, /\.date-filter-button/);
   assert.match(css, /prefers-reduced-motion/);
 
   assert.match(layout, /Revision Reader/);
