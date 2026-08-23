@@ -722,6 +722,45 @@ textarea:focus-visible {
   width: 100%;
 }
 
+.knowledge-panel {
+  display: block;
+  grid-column: 1 / -1;
+  min-height: 190px;
+  padding: 34px 32px 38px;
+}
+
+.knowledge-label {
+  color: #9e96ff;
+  display: block;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  margin-bottom: 17px;
+  text-transform: uppercase;
+}
+
+.knowledge-card h3 {
+  color: #e4e7ec;
+  font-size: clamp(21px, 1.65vw, 29px);
+  font-weight: 470;
+  letter-spacing: -0.012em;
+  line-height: 1.5;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.knowledge-note {
+  border-top: 1px solid var(--line);
+  color: #aeb5c0;
+  font-size: clamp(15px, 1.05vw, 18px);
+  line-height: 1.8;
+  margin: 27px 0 0;
+  overflow-wrap: anywhere;
+  padding-top: 22px;
+  white-space: pre-wrap;
+}
+
 .diff-removed,
 .diff-added {
   border-radius: 4px;
@@ -831,7 +870,7 @@ textarea:focus-visible {
   border-radius: 14px;
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.58);
   max-height: calc(100dvh - 56px);
-  max-width: 980px;
+  max-width: 1440px;
   overflow-y: auto;
   width: 100%;
 }
@@ -847,7 +886,19 @@ textarea:focus-visible {
 .modal-header h2 {
   font-size: 19px;
   letter-spacing: -0.02em;
-  margin: 4px 0 0;
+  margin: 0;
+}
+
+.modal-title-block {
+  min-width: 0;
+}
+
+.modal-title-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 5px;
 }
 
 .modal-kicker {
@@ -855,6 +906,41 @@ textarea:focus-visible {
   font-size: 9px;
   font-weight: 750;
   letter-spacing: 0.16em;
+}
+
+.entry-type-toggle {
+  background: #0b0e13;
+  border: 1px solid #303744;
+  border-radius: 8px;
+  display: inline-flex;
+  overflow: hidden;
+}
+
+.entry-type-toggle button {
+  background: transparent;
+  border: 0;
+  color: #929aa6;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+  height: 32px;
+  padding: 0 14px;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.entry-type-toggle button + button {
+  border-left: 1px solid #303744;
+}
+
+.entry-type-toggle button:hover {
+  color: #d4d8df;
+}
+
+.entry-type-toggle button.active {
+  background: #6f61f5;
+  color: #fff;
 }
 
 .modal-pair {
@@ -902,6 +988,24 @@ textarea:focus-visible {
 
 .changed-field i {
   background: var(--changed);
+}
+
+.knowledge-field {
+  border-bottom: 0;
+}
+
+.knowledge-field > span {
+  color: #9e96ff;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.knowledge-field i {
+  background: #8f87ff;
+}
+
+.knowledge-field textarea {
+  min-height: 150px;
 }
 
 .sentence-field textarea,
@@ -1150,6 +1254,7 @@ input::placeholder {
 
   .entry-meta,
   .sentence-panel,
+  .knowledge-panel,
   .note-row {
     grid-column: 1;
   }
@@ -1177,6 +1282,21 @@ input::placeholder {
     display: block;
     min-height: 0;
     padding: 20px 18px 23px;
+  }
+
+  .knowledge-panel {
+    min-height: 0;
+    padding: 24px 18px 27px;
+  }
+
+  .knowledge-card h3 {
+    font-size: 21px;
+  }
+
+  .knowledge-note {
+    font-size: 15px;
+    margin-top: 21px;
+    padding-top: 18px;
   }
 
   .original-panel {
@@ -1286,6 +1406,17 @@ input::placeholder {
   .modal-footer {
     padding-left: 16px;
     padding-right: 16px;
+  }
+
+  .modal-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .entry-type-toggle button {
+    height: 30px;
+    padding: 0 12px;
   }
 }
 

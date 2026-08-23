@@ -30,6 +30,7 @@ function normalizeEntries(value) {
 
     entries.push({
       id: entry.id,
+      kind: entry.kind === "knowledge" ? "knowledge" : "comparison",
       original: entry.original,
       changed: entry.changed,
       note: entry.note,

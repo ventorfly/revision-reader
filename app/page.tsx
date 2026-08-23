@@ -31,6 +31,7 @@ import {
 
 type StudyEntry = {
   id: string;
+  kind: "comparison" | "knowledge";
   original: string;
   changed: string;
   note: string;
@@ -40,6 +41,7 @@ type StudyEntry = {
 };
 
 type FormState = {
+  kind: "comparison" | "knowledge";
   original: string;
   changed: string;
   note: string;
@@ -95,6 +97,7 @@ const DEFAULT_TAGS = ["时态", "冠词", "介词", "词汇"];
 const sampleEntries: StudyEntry[] = [
   {
     id: "sample-1",
+    kind: "comparison",
     original: "She go to the library every Saturday.",
     changed: "She goes to the library every Saturday.",
     note: "一般现在时中，第三人称单数主语后面的动词需要加 -s。",
@@ -104,6 +107,7 @@ const sampleEntries: StudyEntry[] = [
   },
   {
     id: "sample-2",
+    kind: "comparison",
     original: "I have seen him yesterday.",
     changed: "I saw him yesterday.",
     note: "yesterday 表示明确的过去时间，通常使用一般过去时。",
@@ -113,6 +117,7 @@ const sampleEntries: StudyEntry[] = [
   },
   {
     id: "sample-3",
+    kind: "comparison",
     original: "He is good in playing the piano.",
     changed: "He is good at playing the piano.",
     note: "固定搭配是 be good at doing something。",
@@ -122,6 +127,7 @@ const sampleEntries: StudyEntry[] = [
   },
   {
     id: "sample-4",
+    kind: "comparison",
     original: "I bought a umbrella on my way home.",
     changed: "I bought an umbrella on my way home.",
     note: "umbrella 以元音音素开头，前面使用 an。",
@@ -131,6 +137,7 @@ const sampleEntries: StudyEntry[] = [
   },
   {
     id: "sample-5",
+    kind: "comparison",
     original: "The news make me very exciting.",
     changed: "The news makes me very excited.",
     note: "news 作不可数名词；excited 描述人的感受，exciting 描述事物令人兴奋。",
@@ -140,6 +147,7 @@ const sampleEntries: StudyEntry[] = [
   },
   {
     id: "sample-6",
+    kind: "comparison",
     original: "Although it was raining, but we continued the trip.",
     changed: "Although it was raining, we continued the trip.",
     note: "Although 和 but 不在同一个句子里连用。",
@@ -150,6 +158,7 @@ const sampleEntries: StudyEntry[] = [
 ];
 
 const emptyForm = (): FormState => ({
+  kind: "comparison",
   original: "",
   changed: "",
   note: "",
@@ -185,6 +194,10 @@ function normalizeEntries(value: unknown): StudyEntry[] | null {
 
     normalized.push({
       id: entry.id,
+      kind:
+        "kind" in entry && entry.kind === "knowledge"
+          ? "knowledge"
+          : "comparison",
       original: entry.original,
       changed: entry.changed,
       note: entry.note,
@@ -563,6 +576,7 @@ export default function Home() {
     );
     setEditingId(entry.id);
     setForm({
+      kind: entry.kind,
       original: entry.original,
       changed: entry.changed,
       note: entry.note,
@@ -599,8 +613,10 @@ export default function Home() {
           entry.id === editingId
             ? {
                 ...entry,
+                kind: form.kind,
                 original: form.original.trim(),
-                changed: form.changed.trim(),
+                changed:
+                  form.kind === "knowledge" ? "" : form.changed.trim(),
                 note: form.note.trim(),
                 tags: nextTags,
                 createdAt: form.createdAt,
@@ -609,13 +625,14 @@ export default function Home() {
             : entry,
         ),
       );
-      setToast("这一组已更新");
+      setToast(form.kind === "knowledge" ? "知识点已更新" : "这一组已更新");
     } else {
       setEntries((current) => [
         {
           id: crypto.randomUUID(),
+          kind: form.kind,
           original: form.original.trim(),
-          changed: form.changed.trim(),
+          changed: form.kind === "knowledge" ? "" : form.changed.trim(),
           note: form.note.trim(),
           tags: nextTags,
           createdAt: form.createdAt,
@@ -623,14 +640,20 @@ export default function Home() {
         },
         ...current,
       ]);
-      setToast("新错句已加入");
+      setToast(form.kind === "knowledge" ? "新知识点已加入" : "新错句已加入");
     }
 
     setModalOpen(false);
   };
 
   const deleteEntry = (entry: StudyEntry) => {
-    if (!window.confirm(`确定删除这组句子吗？\n\n${entry.original}`)) return;
+    if (
+      !window.confirm(
+        `${entry.kind === "knowledge" ? "确定删除这个知识点吗？" : "确定删除这组句子吗？"}\n\n${entry.original}`,
+      )
+    ) {
+      return;
+    }
     if (
       activeDate === entry.createdAt &&
       entries.filter((item) => item.createdAt === entry.createdAt).length === 1
@@ -923,9 +946,17 @@ export default function Home() {
           ) : (
             <div className="comparison-list">
               {visibleEntries.map((entry, index) => {
-                const diff = diffText(entry.original, entry.changed);
+                const diff =
+                  entry.kind === "comparison"
+                    ? diffText(entry.original, entry.changed)
+                    : null;
                 return (
-                  <article className="comparison-card" key={entry.id}>
+                  <article
+                    className={`comparison-card${
+                      entry.kind === "knowledge" ? " knowledge-card" : ""
+                    }`}
+                    key={entry.id}
+                  >
                     <div className="entry-meta">
                       <div className="entry-identity">
                         <span className="entry-number">
@@ -946,13 +977,21 @@ export default function Home() {
                       </div>
                       <div className="entry-actions">
                         <IconButton
-                          label="编辑这组句子"
+                          label={
+                            entry.kind === "knowledge"
+                              ? "编辑知识点"
+                              : "编辑这组句子"
+                          }
                           onClick={() => openEditEntry(entry)}
                         >
                           <PencilSimple size={18} />
                         </IconButton>
                         <IconButton
-                          label="删除这组句子"
+                          label={
+                            entry.kind === "knowledge"
+                              ? "删除知识点"
+                              : "删除这组句子"
+                          }
                           onClick={() => deleteEntry(entry)}
                           tone="danger"
                         >
@@ -961,21 +1000,39 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="sentence-panel original-panel">
-                      <span className="mobile-panel-label">Original</span>
-                      <HighlightedSentence segments={diff.left} side="left" />
-                    </div>
-                    <div className="sentence-panel changed-panel">
-                      <span className="mobile-panel-label">Changed</span>
-                      <HighlightedSentence segments={diff.right} side="right" />
-                    </div>
-
-                    {entry.note && (
-                      <div className="note-row">
-                        <Info aria-hidden="true" size={17} weight="fill" />
-                        <span className="note-label">Why it changed</span>
-                        <p>{entry.note}</p>
+                    {entry.kind === "knowledge" ? (
+                      <div className="knowledge-panel">
+                        <span className="knowledge-label">Knowledge point</span>
+                        <h3>{entry.original}</h3>
+                        {entry.note && (
+                          <p className="knowledge-note">{entry.note}</p>
+                        )}
                       </div>
+                    ) : (
+                      <>
+                        <div className="sentence-panel original-panel">
+                          <span className="mobile-panel-label">Original</span>
+                          <HighlightedSentence
+                            segments={diff?.left ?? []}
+                            side="left"
+                          />
+                        </div>
+                        <div className="sentence-panel changed-panel">
+                          <span className="mobile-panel-label">Changed</span>
+                          <HighlightedSentence
+                            segments={diff?.right ?? []}
+                            side="right"
+                          />
+                        </div>
+
+                        {entry.note && (
+                          <div className="note-row">
+                            <Info aria-hidden="true" size={17} weight="fill" />
+                            <span className="note-label">Why it changed</span>
+                            <p>{entry.note}</p>
+                          </div>
+                        )}
+                      </>
                     )}
                   </article>
                 );
@@ -987,7 +1044,15 @@ export default function Home() {
 
       {modalOpen && (
         <div
-          aria-label={editingId ? "编辑错句" : "新增错句"}
+          aria-label={
+            editingId
+              ? form.kind === "knowledge"
+                ? "编辑知识点"
+                : "编辑错句"
+              : form.kind === "knowledge"
+                ? "新增知识点"
+                : "新增错句"
+          }
           aria-modal="true"
           className="modal-backdrop"
           onMouseDown={(event) => {
@@ -997,22 +1062,64 @@ export default function Home() {
         >
           <form className="entry-modal" onSubmit={submitEntry}>
             <div className="modal-header">
-              <div>
+              <div className="modal-title-block">
                 <span className="modal-kicker">
                   {editingId ? "EDIT ENTRY" : "NEW ENTRY"}
                 </span>
-                <h2>{editingId ? "编辑这一组" : "新增一组错句"}</h2>
+                <div className="modal-title-row">
+                  <h2>
+                    {editingId
+                      ? form.kind === "knowledge"
+                        ? "编辑知识点"
+                        : "编辑这一组"
+                      : form.kind === "knowledge"
+                        ? "新增知识点"
+                        : "新增一组错句"}
+                  </h2>
+                  <div
+                    aria-label="记录类型"
+                    className="entry-type-toggle"
+                    role="group"
+                  >
+                    <button
+                      aria-pressed={form.kind === "comparison"}
+                      className={form.kind === "comparison" ? "active" : ""}
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          kind: "comparison",
+                        }))
+                      }
+                      type="button"
+                    >
+                      错句对照
+                    </button>
+                    <button
+                      aria-pressed={form.kind === "knowledge"}
+                      className={form.kind === "knowledge" ? "active" : ""}
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          kind: "knowledge",
+                        }))
+                      }
+                      type="button"
+                    >
+                      知识点
+                    </button>
+                  </div>
+                </div>
               </div>
               <IconButton label="关闭" onClick={() => setModalOpen(false)}>
                 <X size={20} />
               </IconButton>
             </div>
 
-            <div className="modal-pair">
-              <label className="sentence-field original-field">
+            {form.kind === "knowledge" ? (
+              <label className="sentence-field knowledge-field">
                 <span>
                   <i aria-hidden="true" />
-                  Original
+                  Knowledge point
                 </span>
                 <textarea
                   autoFocus
@@ -1022,34 +1129,58 @@ export default function Home() {
                       original: event.target.value,
                     }))
                   }
-                  placeholder="输入你原来写错的句子…"
+                  placeholder="输入想要记录的知识点…"
                   required
                   value={form.original}
                 />
               </label>
-              <label className="sentence-field changed-field">
-                <span>
-                  <i aria-hidden="true" />
-                  Changed
-                </span>
-                <textarea
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      changed: event.target.value,
-                    }))
-                  }
-                  placeholder="输入改正后的句子…"
-                  required
-                  value={form.changed}
-                />
-              </label>
-            </div>
+            ) : (
+              <div className="modal-pair">
+                <label className="sentence-field original-field">
+                  <span>
+                    <i aria-hidden="true" />
+                    Original
+                  </span>
+                  <textarea
+                    autoFocus
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        original: event.target.value,
+                      }))
+                    }
+                    placeholder="输入你原来写错的句子…"
+                    required
+                    value={form.original}
+                  />
+                </label>
+                <label className="sentence-field changed-field">
+                  <span>
+                    <i aria-hidden="true" />
+                    Changed
+                  </span>
+                  <textarea
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        changed: event.target.value,
+                      }))
+                    }
+                    placeholder="输入改正后的句子…"
+                    required
+                    value={form.changed}
+                  />
+                </label>
+              </div>
+            )}
 
             <label className="note-field">
               <span>
                 <NotePencil size={17} />
-                错误原因或备注 <small>可选</small>
+                {form.kind === "knowledge"
+                  ? "解释、例句或备注"
+                  : "错误原因或备注"}{" "}
+                <small>可选</small>
               </span>
               <textarea
                 onChange={(event) =>
@@ -1058,7 +1189,11 @@ export default function Home() {
                     note: event.target.value,
                   }))
                 }
-                placeholder="例如：第三人称单数后面的动词需要加 -s"
+                placeholder={
+                  form.kind === "knowledge"
+                    ? "补充解释、例句或使用场景…"
+                    : "例如：第三人称单数后面的动词需要加 -s"
+                }
                 value={form.note}
               />
             </label>
@@ -1111,7 +1246,11 @@ export default function Home() {
             </div>
 
             <div className="modal-footer">
-              <span>保存后会自动高亮两边的不同内容</span>
+              <span>
+                {form.kind === "knowledge"
+                  ? "保存后将以知识点卡片显示"
+                  : "保存后会自动高亮两边的不同内容"}
+              </span>
               <div>
                 <button
                   className="secondary-button"
@@ -1122,7 +1261,11 @@ export default function Home() {
                 </button>
                 <button className="primary-button" type="submit">
                   <Check size={18} weight="bold" />
-                  {editingId ? "保存修改" : "加入错句本"}
+                  {editingId
+                    ? "保存修改"
+                    : form.kind === "knowledge"
+                      ? "加入知识点"
+                      : "加入错句本"}
                 </button>
               </div>
             </div>
