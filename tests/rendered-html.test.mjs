@@ -73,6 +73,12 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.doesNotMatch(page, /导入会替换当前全部内容/);
   assert.match(page, /检查软件更新/);
   assert.match(page, /desktop\.checkForUpdates\(\)/);
+  assert.match(page, /kind: "comparison" \| "knowledge"/);
+  assert.match(page, /entry\.kind === "knowledge"/);
+  assert.match(page, /Knowledge point/);
+  assert.match(page, /错句对照/);
+  assert.match(page, /加入知识点/);
+  assert.match(page, /保存后将以知识点卡片显示/);
 
   assert.match(css, /\.comparison-card[\s\S]*grid-template-columns:/);
   assert.match(css, /@media \(max-width: 880px\)/);
@@ -85,6 +91,8 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(css, /max-height:\s*min\(440px, calc\(100dvh - 145px\)\)/);
   assert.match(css, /overflow-y:\s*auto/);
   assert.match(css, /\.date-filter-button/);
+  assert.match(css, /\.knowledge-panel/);
+  assert.match(css, /\.entry-type-toggle/);
   assert.match(css, /prefers-reduced-motion/);
 
   assert.match(layout, /Revision Reader/);

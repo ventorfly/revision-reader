@@ -15,6 +15,7 @@ const {
 function makeEntry(id = "entry-1") {
   return {
     id,
+    kind: "comparison",
     original: "She go home.",
     changed: "She goes home.",
     note: "第三人称单数。",
@@ -33,9 +34,23 @@ async function temporaryDirectory(t) {
 test("normalizes older entries that do not contain updatedAt", () => {
   const entry = makeEntry();
   delete entry.updatedAt;
+  delete entry.kind;
 
   const normalized = normalizeEntries([entry]);
   assert.equal(normalized?.[0].updatedAt, entry.createdAt);
+  assert.equal(normalized?.[0].kind, "comparison");
+});
+
+test("preserves knowledge-point entries in desktop backups", () => {
+  const entry = {
+    ...makeEntry("knowledge-1"),
+    kind: "knowledge",
+    original: "catch up on + noun",
+    changed: "",
+    note: "把之前落下的东西补回来。",
+  };
+
+  assert.deepEqual(normalizeEntries([entry])?.[0], entry);
 });
 
 test("migrates the legacy Electron profile without deleting the source", async (t) => {
