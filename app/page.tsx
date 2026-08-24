@@ -280,6 +280,31 @@ function diffText(original: string, changed: string) {
   return { left, right };
 }
 
+function splitChangedAlternatives(changed: string) {
+  const alternatives = changed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return alternatives.length > 0 ? alternatives : [changed];
+}
+
+function emphasizeInsertedInfinitive(segments: DiffSegment[]) {
+  return segments.map((segment, index) => {
+    const isSingleSharedWord =
+      /^\s*[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*\s*$/u.test(segment.text);
+    const followsAddedTo =
+      segments[index - 1]?.kind === "added" &&
+      segments[index - 1]?.text.trim().toLocaleLowerCase() === "to";
+
+    return segment.kind === "same" &&
+      isSingleSharedWord &&
+      followsAddedTo
+      ? { ...segment, kind: "added" as const }
+      : segment;
+  });
+}
+
 function HighlightedSentence({
   segments,
   side,
@@ -946,10 +971,26 @@ export default function Home() {
           ) : (
             <div className="comparison-list">
               {visibleEntries.map((entry, index) => {
-                const diff =
+                const changedAlternatives =
                   entry.kind === "comparison"
-                    ? diffText(entry.original, entry.changed)
+                    ? splitChangedAlternatives(entry.changed)
+                    : [];
+                const primaryDiff =
+                  entry.kind === "comparison"
+                    ? diffText(
+                        entry.original,
+                        changedAlternatives[0] ?? entry.changed,
+                      )
                     : null;
+                const changedDiffs =
+                  entry.kind === "comparison"
+                    ? changedAlternatives.map(
+                        (alternative) =>
+                          emphasizeInsertedInfinitive(
+                            diffText(entry.original, alternative).right,
+                          ),
+                      )
+                    : [];
                 return (
                   <article
                     className={`comparison-card${
@@ -1013,16 +1054,21 @@ export default function Home() {
                         <div className="sentence-panel original-panel">
                           <span className="mobile-panel-label">Original</span>
                           <HighlightedSentence
-                            segments={diff?.left ?? []}
+                            segments={primaryDiff?.left ?? []}
                             side="left"
                           />
                         </div>
                         <div className="sentence-panel changed-panel">
                           <span className="mobile-panel-label">Changed</span>
-                          <HighlightedSentence
-                            segments={diff?.right ?? []}
-                            side="right"
-                          />
+                          <div className="changed-alternatives">
+                            {changedDiffs.map((segments, alternativeIndex) => (
+                              <HighlightedSentence
+                                key={`${entry.id}-alternative-${alternativeIndex}`}
+                                segments={segments}
+                                side="right"
+                              />
+                            ))}
+                          </div>
                         </div>
 
                         {entry.note && (
