@@ -53,6 +53,10 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(page, /crypto\.randomUUID\(\)/);
   assert.match(page, /application\/json/);
   assert.match(page, /`diff-\$\{segment\.kind\}`/);
+  assert.match(page, /function splitChangedAlternatives/);
+  assert.match(page, /function emphasizeInsertedInfinitive/);
+  assert.match(page, /changedAlternatives\.map/);
+  assert.match(page, /className="changed-alternatives"/);
   assert.match(page, /sampleEntries/);
   assert.match(page, /activeTag/);
   assert.match(page, /activeDate/);
@@ -85,6 +89,7 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(css, /\.comparison-card\s*\{[\s\S]*grid-template-columns:\s*1fr/);
   assert.match(css, /\.diff-removed/);
   assert.match(css, /\.diff-added/);
+  assert.match(css, /\.changed-alternatives/);
   assert.doesNotMatch(css, /text-decoration:\s*line-through/);
   assert.match(css, /\.update-button[\s\S]*font-size:\s*11px/);
   assert.match(css, /\.date-filter-menu/);

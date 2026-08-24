@@ -750,6 +750,12 @@ textarea:focus-visible {
   white-space: pre-wrap;
 }
 
+.changed-alternatives {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
 .knowledge-note {
   border-top: 1px solid var(--line);
   color: #aeb5c0;
