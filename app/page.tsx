@@ -7,6 +7,8 @@ import {
   BookOpenText,
   CalendarBlank,
   CaretDown,
+  CaretLeft,
+  CaretRight,
   Check,
   DownloadSimple,
   FileArrowUp,
@@ -85,6 +87,7 @@ declare global {
 }
 
 type DiffKind = "same" | "removed" | "added";
+type DateScope = "all" | "today" | "last7" | "date";
 
 type DiffSegment = {
   text: string;
@@ -93,6 +96,33 @@ type DiffSegment = {
 
 const STORAGE_KEY = "revision-reader.entries.v2";
 const DEFAULT_TAGS = ["时态", "冠词", "介词", "词汇"];
+
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split("-");
+  return `${year} 年 ${Number(month)} 月`;
+}
+
+function matchesDateScope(
+  entryDate: string,
+  scope: DateScope,
+  activeDate: string | null,
+  today: string,
+  lastSevenStart: string,
+) {
+  if (scope === "today") return entryDate === today;
+  if (scope === "last7") {
+    return entryDate >= lastSevenStart && entryDate <= today;
+  }
+  if (scope === "date") return entryDate === activeDate;
+  return true;
+}
 
 const sampleEntries: StudyEntry[] = [
   {
@@ -164,7 +194,7 @@ const emptyForm = (): FormState => ({
   note: "",
   tags: [],
   customTags: "",
-  createdAt: new Date().toISOString().slice(0, 10),
+  createdAt: localDateKey(),
 });
 
 function normalizeEntries(value: unknown): StudyEntry[] | null {
@@ -361,7 +391,11 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState("全部");
   const [activeDate, setActiveDate] = useState<string | null>(null);
+  const [dateScope, setDateScope] = useState<DateScope>("all");
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
+  const [visibleMonth, setVisibleMonth] = useState(() =>
+    localDateKey().slice(0, 7),
+  );
   const [sortNewest, setSortNewest] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -370,6 +404,7 @@ export default function Home() {
   const [checkingForUpdates, setCheckingForUpdates] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dateFilterRef = useRef<HTMLDivElement>(null);
+  const dateFilterButtonRef = useRef<HTMLButtonElement>(null);
   const backupWarningShownRef = useRef(false);
 
   /* Client-only hydration avoids a server/client mismatch while restoring
@@ -478,7 +513,10 @@ export default function Home() {
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDateMenuOpen(false);
+      if (event.key === "Escape") {
+        setDateMenuOpen(false);
+        window.requestAnimationFrame(() => dateFilterButtonRef.current?.focus());
+      }
     };
 
     document.addEventListener("pointerdown", closeWhenClickingOutside);
@@ -488,6 +526,15 @@ export default function Home() {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [dateMenuOpen]);
+
+  const [todayDateKey, setTodayDateKey] = useState(localDateKey);
+
+  useEffect(() => {
+    const refreshLocalDate = () => setTodayDateKey(localDateKey());
+    refreshLocalDate();
+    const interval = window.setInterval(refreshLocalDate, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const allTags = useMemo(
     () =>
@@ -509,11 +556,69 @@ export default function Home() {
     );
   }, [entries]);
 
+  const monthOptions = useMemo(
+    () =>
+      Array.from(new Set(dateOptions.map(({ date }) => date.slice(0, 7)))),
+    [dateOptions],
+  );
+
+  const displayedMonth = monthOptions.includes(visibleMonth)
+    ? visibleMonth
+    : (monthOptions[0] ?? visibleMonth);
+
+  const lastSevenStart = useMemo(() => {
+    const [year, month, day] = todayDateKey.split("-").map(Number);
+    const start = new Date(year, month - 1, day);
+    start.setDate(start.getDate() - 6);
+    return localDateKey(start);
+  }, [todayDateKey]);
+
+  const visibleMonthDates = useMemo(
+    () => dateOptions.filter(({ date }) => date.startsWith(displayedMonth)),
+    [dateOptions, displayedMonth],
+  );
+
+  const visibleMonthIndex = monthOptions.indexOf(displayedMonth);
+  const canShowOlderMonth =
+    visibleMonthIndex >= 0 && visibleMonthIndex < monthOptions.length - 1;
+  const canShowNewerMonth = visibleMonthIndex > 0;
+
+  const dateScopeLabel =
+    dateScope === "today"
+      ? "今天"
+      : dateScope === "last7"
+        ? "最近7天"
+        : dateScope === "date" && activeDate
+          ? activeDate
+          : "全部句子";
+
+  const dateScopeCount = useMemo(
+    () =>
+      entries.filter((entry) =>
+        matchesDateScope(
+          entry.createdAt,
+          dateScope,
+          activeDate,
+          todayDateKey,
+          lastSevenStart,
+        ),
+      ).length,
+    [activeDate, dateScope, entries, lastSevenStart, todayDateKey],
+  );
+
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const matchingEntries = entries
       .filter((entry) => activeTag === "全部" || entry.tags.includes(activeTag))
-      .filter((entry) => !activeDate || entry.createdAt === activeDate)
+      .filter((entry) =>
+        matchesDateScope(
+          entry.createdAt,
+          dateScope,
+          activeDate,
+          todayDateKey,
+          lastSevenStart,
+        ),
+      )
       .filter((entry) => {
         if (!normalizedQuery) return true;
         return [
@@ -532,17 +637,37 @@ export default function Home() {
         return sortNewest ? b.index - a.index : a.index - b.index;
       })
       .map(({ entry }) => entry);
-  }, [activeDate, activeTag, entries, query, sortNewest]);
+  }, [
+    activeDate,
+    activeTag,
+    dateScope,
+    entries,
+    lastSevenStart,
+    query,
+    sortNewest,
+    todayDateKey,
+  ]);
 
   const chooseDate = (date: string | null) => {
     setActiveDate(date);
+    setDateScope(date ? "date" : "all");
+    if (date) setVisibleMonth(date.slice(0, 7));
     setDateMenuOpen(false);
+    window.requestAnimationFrame(() => dateFilterButtonRef.current?.focus());
+  };
+
+  const chooseDateScope = (scope: Exclude<DateScope, "date">) => {
+    setActiveDate(null);
+    setDateScope(scope);
+    setDateMenuOpen(false);
+    window.requestAnimationFrame(() => dateFilterButtonRef.current?.focus());
   };
 
   const clearFilters = () => {
     setQuery("");
     setActiveTag("全部");
     setActiveDate(null);
+    setDateScope("all");
   };
 
   const openNewEntry = () => {
@@ -631,6 +756,7 @@ export default function Home() {
           .length === 1
       ) {
         setActiveDate(null);
+        setDateScope("all");
       }
 
       setEntries((current) =>
@@ -684,6 +810,7 @@ export default function Home() {
       entries.filter((item) => item.createdAt === entry.createdAt).length === 1
     ) {
       setActiveDate(null);
+      setDateScope("all");
     }
     setEntries((current) => current.filter((item) => item.id !== entry.id));
     setToast("已删除");
@@ -852,13 +979,19 @@ export default function Home() {
             <button
               aria-controls="date-filter-menu"
               aria-expanded={dateMenuOpen}
-              aria-haspopup="menu"
+              aria-haspopup="dialog"
               className={`date-filter-button${dateMenuOpen ? " open" : ""}`}
-              onClick={() => setDateMenuOpen((current) => !current)}
+              onClick={() => {
+                if (!dateMenuOpen && activeDate) {
+                  setVisibleMonth(activeDate.slice(0, 7));
+                }
+                setDateMenuOpen((current) => !current);
+              }}
+              ref={dateFilterButtonRef}
               type="button"
             >
               <CalendarBlank aria-hidden="true" size={17} />
-              显示：{activeDate ?? "全部句子"}
+              显示：{dateScopeLabel}
               <CaretDown
                 aria-hidden="true"
                 className={dateMenuOpen ? "open" : ""}
@@ -872,50 +1005,100 @@ export default function Home() {
                 aria-label="选择句子显示范围"
                 className="date-filter-menu"
                 id="date-filter-menu"
-                role="menu"
+                role="dialog"
               >
-                <span className="date-filter-title">显示范围</span>
-                <button
-                  className={activeDate === null ? "selected" : ""}
-                  onClick={() => chooseDate(null)}
-                  role="menuitemradio"
-                  type="button"
-                  aria-checked={activeDate === null}
-                >
-                  <span className="date-filter-option">
-                    <span className="date-filter-check">
-                      {activeDate === null && <Check size={14} weight="bold" />}
-                    </span>
-                    全部句子
-                  </span>
-                  <span className="date-filter-count">{entries.length} 条</span>
-                </button>
+                <span className="date-filter-title">选择显示范围</span>
 
-                <span className="date-filter-section">按日期</span>
-                {dateOptions.map((dateOption) => (
+                <div
+                  aria-label="快速显示范围"
+                  className="date-scope-switch"
+                  role="group"
+                >
+                  {[
+                    { label: "全部", scope: "all" as const },
+                    { label: "今天", scope: "today" as const },
+                    { label: "最近7天", scope: "last7" as const },
+                  ].map((option) => (
+                    <button
+                      aria-pressed={dateScope === option.scope}
+                      className={
+                        dateScope === option.scope ? "selected" : ""
+                      }
+                      key={option.scope}
+                      onClick={() => chooseDateScope(option.scope)}
+                      type="button"
+                    >
+                      {dateScope === option.scope && (
+                        <Check aria-hidden="true" size={14} weight="bold" />
+                      )}
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="date-scope-summary">
+                  <span className="date-scope-icon">
+                    <BookOpenText aria-hidden="true" size={17} />
+                  </span>
+                  <strong>{dateScopeLabel}</strong>
+                  <span>{dateScopeCount} 条</span>
+                </div>
+
+                <div className="date-month-picker">
                   <button
-                    aria-checked={activeDate === dateOption.date}
-                    className={
-                      activeDate === dateOption.date ? "selected" : ""
+                    aria-label="上一个有内容的月份"
+                    className="month-arrow"
+                    disabled={!canShowOlderMonth}
+                    onClick={() =>
+                      setVisibleMonth(monthOptions[visibleMonthIndex + 1])
                     }
-                    key={dateOption.date}
-                    onClick={() => chooseDate(dateOption.date)}
-                    role="menuitemradio"
                     type="button"
                   >
-                    <span className="date-filter-option">
-                      <span className="date-filter-check">
-                        {activeDate === dateOption.date && (
-                          <Check size={14} weight="bold" />
-                        )}
-                      </span>
-                      {dateOption.date}
-                    </span>
-                    <span className="date-filter-count">
-                      {dateOption.count} 条
-                    </span>
+                    <CaretLeft aria-hidden="true" size={18} weight="bold" />
                   </button>
-                ))}
+                  <strong>{formatMonthLabel(displayedMonth)}</strong>
+                  <button
+                    aria-label="下一个有内容的月份"
+                    className="month-arrow"
+                    disabled={!canShowNewerMonth}
+                    onClick={() =>
+                      setVisibleMonth(monthOptions[visibleMonthIndex - 1])
+                    }
+                    type="button"
+                  >
+                    <CaretRight aria-hidden="true" size={18} weight="bold" />
+                  </button>
+                </div>
+
+                <div className="date-filter-grid">
+                  {visibleMonthDates.map((dateOption) => {
+                    const isSelected =
+                      dateScope === "date" && activeDate === dateOption.date;
+                    const isToday = dateOption.date === todayDateKey;
+                    return (
+                      <button
+                        aria-current={isToday ? "date" : undefined}
+                        aria-pressed={isSelected}
+                        className={`${isSelected ? "selected " : ""}${
+                          isToday ? "today" : ""
+                        }`.trim()}
+                        key={dateOption.date}
+                        onClick={() => chooseDate(dateOption.date)}
+                        type="button"
+                      >
+                        <strong>{Number(dateOption.date.slice(8))}日</strong>
+                        {isToday && (
+                          <span className="date-today">
+                            <i aria-hidden="true" />今天
+                          </span>
+                        )}
+                        <span className="date-grid-count">
+                          {dateOption.count} 条
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
