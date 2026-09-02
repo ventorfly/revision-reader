@@ -102,6 +102,7 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(css, /\.diff-removed/);
   assert.match(css, /\.diff-added/);
   assert.match(css, /\.changed-alternatives/);
+  assert.match(css, /\.note-row p[\s\S]*white-space:\s*pre-wrap/);
   assert.doesNotMatch(css, /text-decoration:\s*line-through/);
   assert.match(css, /\.update-button[\s\S]*font-size:\s*11px/);
   assert.match(css, /\.date-filter-menu/);
