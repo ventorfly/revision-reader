@@ -53,6 +53,18 @@ test("preserves knowledge-point entries in desktop backups", () => {
   assert.deepEqual(normalizeEntries([entry])?.[0], entry);
 });
 
+test("preserves line breaks inside notes", async (t) => {
+  const userData = await temporaryDirectory(t);
+  const multilineNote =
+    "更自然的说法是 Is anyone there?\n= 那里有人吗？\n或者：Are there any people there?";
+  const entries = [{ ...makeEntry("multiline-note"), note: multilineNote }];
+
+  writeAutoBackup(userData, entries, new Date("2026-09-02T08:00:00.000Z"));
+
+  const restored = loadLatestBackup(userData);
+  assert.equal(restored?.entries[0].note, multilineNote);
+});
+
 test("migrates the legacy Electron profile without deleting the source", async (t) => {
   const root = await temporaryDirectory(t);
   const legacy = join(root, "legacy-data");
