@@ -947,6 +947,10 @@ textarea:focus-visible {
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.note-row.preserve-line-breaks p {
   white-space: pre-wrap;
 }
 

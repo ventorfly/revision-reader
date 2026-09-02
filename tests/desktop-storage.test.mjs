@@ -39,6 +39,7 @@ test("normalizes older entries that do not contain updatedAt", () => {
   const normalized = normalizeEntries([entry]);
   assert.equal(normalized?.[0].updatedAt, entry.createdAt);
   assert.equal(normalized?.[0].kind, "comparison");
+  assert.equal(normalized?.[0].preserveNoteLineBreaks, undefined);
 });
 
 test("preserves knowledge-point entries in desktop backups", () => {
@@ -57,12 +58,19 @@ test("preserves line breaks inside notes", async (t) => {
   const userData = await temporaryDirectory(t);
   const multilineNote =
     "更自然的说法是 Is anyone there?\n= 那里有人吗？\n或者：Are there any people there?";
-  const entries = [{ ...makeEntry("multiline-note"), note: multilineNote }];
+  const entries = [
+    {
+      ...makeEntry("multiline-note"),
+      note: multilineNote,
+      preserveNoteLineBreaks: true,
+    },
+  ];
 
   writeAutoBackup(userData, entries, new Date("2026-09-02T08:00:00.000Z"));
 
   const restored = loadLatestBackup(userData);
   assert.equal(restored?.entries[0].note, multilineNote);
+  assert.equal(restored?.entries[0].preserveNoteLineBreaks, true);
 });
 
 test("migrates the legacy Electron profile without deleting the source", async (t) => {

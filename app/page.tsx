@@ -37,6 +37,7 @@ type StudyEntry = {
   original: string;
   changed: string;
   note: string;
+  preserveNoteLineBreaks?: boolean;
   tags: string[];
   createdAt: string;
   updatedAt: string;
@@ -231,6 +232,10 @@ function normalizeEntries(value: unknown): StudyEntry[] | null {
       original: entry.original,
       changed: entry.changed,
       note: entry.note,
+      ...("preserveNoteLineBreaks" in entry &&
+      entry.preserveNoteLineBreaks === true
+        ? { preserveNoteLineBreaks: true }
+        : {}),
       tags: [...entry.tags],
       createdAt: entry.createdAt,
       updatedAt:
@@ -769,6 +774,7 @@ export default function Home() {
                 changed:
                   form.kind === "knowledge" ? "" : form.changed.trim(),
                 note: form.note.trim(),
+                preserveNoteLineBreaks: true,
                 tags: nextTags,
                 createdAt: form.createdAt,
                 updatedAt: now,
@@ -785,6 +791,7 @@ export default function Home() {
           original: form.original.trim(),
           changed: form.kind === "knowledge" ? "" : form.changed.trim(),
           note: form.note.trim(),
+          preserveNoteLineBreaks: true,
           tags: nextTags,
           createdAt: form.createdAt,
           updatedAt: now,
@@ -1255,7 +1262,13 @@ export default function Home() {
                         </div>
 
                         {entry.note && (
-                          <div className="note-row">
+                          <div
+                            className={`note-row${
+                              entry.preserveNoteLineBreaks
+                                ? " preserve-line-breaks"
+                                : ""
+                            }`}
+                          >
                             <Info aria-hidden="true" size={17} weight="fill" />
                             <span className="note-label">Why it changed</span>
                             <p>{entry.note}</p>

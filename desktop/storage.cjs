@@ -34,6 +34,9 @@ function normalizeEntries(value) {
       original: entry.original,
       changed: entry.changed,
       note: entry.note,
+      ...(entry.preserveNoteLineBreaks === true
+        ? { preserveNoteLineBreaks: true }
+        : {}),
       tags: [...entry.tags],
       createdAt: entry.createdAt,
       updatedAt:
