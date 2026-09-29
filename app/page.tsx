@@ -410,7 +410,7 @@ function ReviewSession({ entries, onClose }: {
   }, [index, roundNumber]);
 
   useEffect(() => {
-    if (revealed) actionRef.current?.focus();
+    if (revealed) actionRef.current?.focus({ preventScroll: true });
   }, [revealed]);
 
   const grade = (again: boolean) => {
