@@ -9,6 +9,15 @@ function ensureDirectory(directory) {
   fs.mkdirSync(directory, { recursive: true });
 }
 
+function normalizeReview(value) {
+  if (!value || typeof value !== "object" ||
+      (value.status !== "known" && value.status !== "again") ||
+      typeof value.reviewedAt !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T/.test(value.reviewedAt) ||
+      !Number.isFinite(Date.parse(value.reviewedAt))) return undefined;
+  return { status: value.status, reviewedAt: value.reviewedAt };
+}
+
 function normalizeEntries(value) {
   if (!Array.isArray(value)) return null;
 
@@ -28,12 +37,14 @@ function normalizeEntries(value) {
       return null;
     }
 
+    const review = normalizeReview(entry.review);
     entries.push({
       id: entry.id,
       kind: entry.kind === "knowledge" ? "knowledge" : "comparison",
       original: entry.original,
       changed: entry.changed,
       note: entry.note,
+      ...(review ? { review } : {}),
       ...(entry.preserveNoteLineBreaks === true
         ? { preserveNoteLineBreaks: true }
         : {}),

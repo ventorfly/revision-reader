@@ -54,6 +54,28 @@ test("preserves knowledge-point entries in desktop backups", () => {
   assert.deepEqual(normalizeEntries([entry])?.[0], entry);
 });
 
+test("review status and time survive backup recovery and later regrading", async (t) => {
+  const userData = await temporaryDirectory(t);
+  const entry = {
+    ...makeEntry(),
+    review: { status: "known", reviewedAt: "2026-09-29T10:30:00.000Z" },
+  };
+  writeAutoBackup(userData, [entry]);
+  assert.deepEqual(loadLatestBackup(userData)?.entries, [entry]);
+  const regraded = { ...entry, review: { status: "again", reviewedAt: "2026-09-30T10:30:00.000Z" } };
+  writeAutoBackup(userData, [regraded]);
+  const recovered = loadLatestBackup(userData)?.entries[0];
+  assert.deepEqual(recovered, regraded);
+  assert.equal(recovered.updatedAt, entry.updatedAt);
+});
+
+test("invalid optional review metadata never discards a sentence", () => {
+  const entry = makeEntry();
+  for (const review of [null, {}, { status: "other", reviewedAt: "2026-09-29T00:00:00.000Z" }, { status: "known", reviewedAt: "not-a-date" }]) {
+    assert.deepEqual(normalizeEntries([{ ...entry, review }]), [entry]);
+  }
+});
+
 test("preserves line breaks inside notes", async (t) => {
   const userData = await temporaryDirectory(t);
   const multilineNote =

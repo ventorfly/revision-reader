@@ -31,6 +31,9 @@ import {
   useState,
 } from "react";
 
+type ReviewRecord = { status: "known" | "again"; reviewedAt: string };
+type ReviewFilter = "all" | "unseen" | "reviewed" | ReviewRecord["status"];
+
 type StudyEntry = {
   id: string;
   kind: "comparison" | "knowledge";
@@ -38,6 +41,7 @@ type StudyEntry = {
   changed: string;
   note: string;
   preserveNoteLineBreaks?: boolean;
+  review?: ReviewRecord;
   tags: string[];
   createdAt: string;
   updatedAt: string;
@@ -198,6 +202,16 @@ const emptyForm = (): FormState => ({
   createdAt: localDateKey(),
 });
 
+function normalizeReview(value: unknown): ReviewRecord | undefined {
+  if (!value || typeof value !== "object" ||
+      !("status" in value) || !("reviewedAt" in value) ||
+      (value.status !== "known" && value.status !== "again") ||
+      typeof value.reviewedAt !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T/.test(value.reviewedAt) ||
+      !Number.isFinite(Date.parse(value.reviewedAt))) return undefined;
+  return { status: value.status, reviewedAt: value.reviewedAt };
+}
+
 function normalizeEntries(value: unknown): StudyEntry[] | null {
   if (!Array.isArray(value)) return null;
 
@@ -223,6 +237,7 @@ function normalizeEntries(value: unknown): StudyEntry[] | null {
       return null;
     }
 
+    const review = normalizeReview("review" in entry ? entry.review : undefined);
     normalized.push({
       id: entry.id,
       kind:
@@ -232,6 +247,7 @@ function normalizeEntries(value: unknown): StudyEntry[] | null {
       original: entry.original,
       changed: entry.changed,
       note: entry.note,
+      ...(review ? { review } : {}),
       ...("preserveNoteLineBreaks" in entry &&
       entry.preserveNoteLineBreaks === true
         ? { preserveNoteLineBreaks: true }
@@ -390,9 +406,11 @@ function IconButton({
   );
 }
 
-function ReviewSession({ entries, onClose }: {
+function ReviewSession({ entries, onClose, onReview, toast }: {
   entries: StudyEntry[];
   onClose: () => void;
+  onReview: (id: string, status: ReviewRecord["status"]) => void;
+  toast: string;
 }) {
   const [round, setRound] = useState(() => entries.slice(0, 5));
   const [remaining, setRemaining] = useState(() => entries.slice(5));
@@ -415,6 +433,7 @@ function ReviewSession({ entries, onClose }: {
 
   const grade = (again: boolean) => {
     if (!revealed || !entry) return;
+    onReview(entry.id, again ? "again" : "known");
     if (again) setRetry((current) => [...current, entry]);
     setRevealed(false);
     setIndex((current) => current + 1);
@@ -468,7 +487,7 @@ function ReviewSession({ entries, onClose }: {
               )}
               <button className="review-button" onClick={onClose} type="button">结束复习</button>
             </div>
-            <p className="review-caption">本次标记只用于这次复习；退出后不保留进度。</p>
+            <p className="review-caption">复习记录会自动保存。退出后可在「复习进度」中查看和筛选。</p>
           </section>
         ) : (
           <>
@@ -516,6 +535,7 @@ function ReviewSession({ entries, onClose }: {
           </>
         )}
       </div>
+      {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
 }
@@ -524,6 +544,7 @@ export default function Home() {
   const [entries, setEntries] = useState<StudyEntry[]>([]);
   const [ready, setReady] = useState(false);
   const [reviewEntries, setReviewEntries] = useState<StudyEntry[] | null>(null);
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const reviewButtonRef = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState("全部");
@@ -746,6 +767,13 @@ export default function Home() {
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const matchingEntries = entries
+      .filter((entry) => {
+        if (reviewFilter === "all") return true;
+        if (entry.kind !== "comparison" || !entry.changed.trim()) return false;
+        if (reviewFilter === "unseen") return !entry.review;
+        if (reviewFilter === "reviewed") return Boolean(entry.review);
+        return entry.review?.status === reviewFilter;
+      })
       .filter((entry) => activeTag === "全部" || entry.tags.includes(activeTag))
       .filter((entry) =>
         matchesDateScope(
@@ -781,6 +809,7 @@ export default function Home() {
     entries,
     lastSevenStart,
     query,
+    reviewFilter,
     sortNewest,
     todayDateKey,
   ]);
@@ -801,6 +830,7 @@ export default function Home() {
   };
 
   const clearFilters = () => {
+    setReviewFilter("all");
     setQuery("");
     setActiveTag("全部");
     setActiveDate(null);
@@ -1043,7 +1073,11 @@ export default function Home() {
   };
 
   if (reviewEntries) {
-    return <ReviewSession entries={reviewEntries} onClose={() => {
+    return <ReviewSession entries={reviewEntries} toast={toast} onReview={(id, status) => {
+      const reviewedAt = new Date().toISOString();
+      setEntries((current) => current.map((entry) => entry.id === id
+        ? { ...entry, review: { status, reviewedAt } } : entry));
+    }} onClose={() => {
       setReviewEntries(null);
       window.requestAnimationFrame(() => reviewButtonRef.current?.focus());
     }} />;
@@ -1135,6 +1169,17 @@ export default function Home() {
           ))}
         </div>
         <div className="filter-actions">
+          <label className="review-filter">
+            <span className="visually-hidden">复习进度</span>
+            <select aria-label="复习进度" value={reviewFilter}
+              onChange={(event) => setReviewFilter(event.target.value as ReviewFilter)}>
+              <option value="all">复习进度：全部</option>
+              <option value="unseen">未练过</option>
+              <option value="again">需要再练</option>
+              <option value="known">已会</option>
+              <option value="reviewed">已练过</option>
+            </select>
+          </label>
           <button
             className="review-start-button"
             disabled={!ready || reviewCandidates.length === 0}
@@ -1316,7 +1361,7 @@ export default function Home() {
             <div className="empty-state">
               <MagnifyingGlass size={28} />
               <strong>没有找到匹配的句子</strong>
-              <span>试试其他关键词、标签或日期。</span>
+              <span>试试其他关键词、标签、日期或复习进度。</span>
               <button onClick={clearFilters} type="button">
                 清除筛选
               </button>
@@ -1357,6 +1402,17 @@ export default function Home() {
                           {String(index + 1).padStart(2, "0")}
                         </span>
                         <time dateTime={entry.createdAt}>{entry.createdAt}</time>
+                        {entry.kind === "comparison" && entry.changed.trim() && (
+                          <span className="entry-review">
+                            <span className={`review-badge ${entry.review?.status ?? "unseen"}`}>
+                              {entry.review?.status === "known" ? "已会" : entry.review?.status === "again" ? "需要再练" : "未练过"}
+                            </span>
+                            {entry.review && <time dateTime={entry.review.reviewedAt}
+                              title={new Date(entry.review.reviewedAt).toLocaleString("zh-CN")}>
+                              上次复习 {localDateKey(new Date(entry.review.reviewedAt))}
+                            </time>}
+                          </span>
+                        )}
                         <div className="entry-tags">
                           {entry.tags.map((tagName) => (
                             <button
