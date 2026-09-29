@@ -217,7 +217,7 @@ function normalizeEntries(value: unknown): StudyEntry[] | null {
       typeof entry.changed !== "string" ||
       typeof entry.note !== "string" ||
       !Array.isArray(entry.tags) ||
-      !entry.tags.every((tag) => typeof tag === "string") ||
+      !entry.tags.every((tag: unknown) => typeof tag === "string") ||
       typeof entry.createdAt !== "string"
     ) {
       return null;
@@ -390,9 +390,141 @@ function IconButton({
   );
 }
 
+function ReviewSession({ entries, onClose }: {
+  entries: StudyEntry[];
+  onClose: () => void;
+}) {
+  const [round, setRound] = useState(() => entries.slice(0, 5));
+  const [remaining, setRemaining] = useState(() => entries.slice(5));
+  const [index, setIndex] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const [retry, setRetry] = useState<StudyEntry[]>([]);
+  const [roundNumber, setRoundNumber] = useState(1);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const actionRef = useRef<HTMLButtonElement>(null);
+  const entry = round[index];
+  const complete = !entry;
+
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, [index, roundNumber]);
+
+  useEffect(() => {
+    if (revealed) actionRef.current?.focus();
+  }, [revealed]);
+
+  const grade = (again: boolean) => {
+    if (!revealed || !entry) return;
+    if (again) setRetry((current) => [...current, entry]);
+    setRevealed(false);
+    setIndex((current) => current + 1);
+  };
+
+  const startRound = (items: StudyEntry[], rest: StudyEntry[]) => {
+    setRound(items.slice(0, 5));
+    setRemaining(rest);
+    setRetry([]);
+    setRevealed(false);
+    setIndex(0);
+    setRoundNumber((current) => current + 1);
+  };
+
+  const alternatives = entry ? splitChangedAlternatives(entry.changed) : [];
+  const primaryDiff = entry && revealed
+    ? diffText(entry.original, alternatives[0] ?? entry.changed) : null;
+
+  return (
+    <main className="review-shell">
+      <header className="review-topbar">
+        <div className="brand">
+          <div className="brand-mark"><BookOpenText size={22} /></div>
+          <div><h1>复习模式</h1><p>每轮最多 5 条 · 先回忆，再揭晓</p></div>
+        </div>
+        <button className="review-button" onClick={onClose} type="button">
+          <X size={16} />退出复习
+        </button>
+      </header>
+      <div className="review-body">
+        <div className="review-progress-row">
+          <span>第 {roundNumber} 轮</span>
+          <span>{complete ? `已完成 ${round.length} 条` : `第 ${index + 1} / ${round.length} 条`}</span>
+        </div>
+        <progress aria-label="本轮复习进度" max={round.length} value={index} />
+        {complete ? (
+          <section className="review-complete">
+            <Check size={36} className="review-success" />
+            <h2 ref={headingRef} tabIndex={-1}>这一轮完成了</h2>
+            <p>本轮会了 {round.length - retry.length} 条，还有 {retry.length} 条想再练。</p>
+            <div className="review-actions">
+              {retry.length > 0 && (
+                <button className="primary-button" onClick={() => startRound(retry, remaining)} type="button">
+                  重练这 {retry.length} 条
+                </button>
+              )}
+              {remaining.length > 0 && (
+                <button className="review-button" onClick={() => startRound(remaining, [...remaining.slice(5), ...retry])} type="button">
+                  继续下一组（{Math.min(5, remaining.length)} 条）
+                </button>
+              )}
+              <button className="review-button" onClick={onClose} type="button">结束复习</button>
+            </div>
+            <p className="review-caption">本次标记只用于这次复习；退出后不保留进度。</p>
+          </section>
+        ) : (
+          <>
+            <h2 className="review-prompt" ref={headingRef} tabIndex={-1}>
+              {revealed ? "对照答案，看看自己掌握了吗" : "先试着改一改这句话"}
+            </h2>
+            <p className="review-caption">有些原句本身也正确。意思符合、表达正确即可，不必逐字一致。</p>
+            <article className="comparison-card review-card" key={`${roundNumber}-${entry.id}`}>
+              <div className="entry-meta"><time dateTime={entry.createdAt}>{entry.createdAt}</time></div>
+              <div className="sentence-panel original-panel">
+                <span className="review-panel-label original-heading">Original · 我的原句</span>
+                {primaryDiff ? <HighlightedSentence segments={primaryDiff.left} side="left" /> : (
+                  <p className="sentence-text review-original">{entry.original}</p>
+                )}
+              </div>
+              <div className="sentence-panel changed-panel">
+                <span className="review-panel-label changed-heading">Changed · 修改后的句子</span>
+                {revealed ? (
+                  <div className="changed-alternatives">
+                    {alternatives.map((alternative, alternativeIndex) => (
+                      <HighlightedSentence key={alternativeIndex} segments={emphasizeInsertedInfinitive(diffText(entry.original, alternative).right)} side="right" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="review-covered">
+                    <span>答案和备注已隐藏</span>
+                    <button className="primary-button" onClick={() => setRevealed(true)} type="button">显示答案</button>
+                    <small>先自己说一句，再点击揭晓</small>
+                  </div>
+                )}
+              </div>
+              {revealed && entry.note && (
+                <div className={`note-row${entry.preserveNoteLineBreaks ? " preserve-line-breaks" : ""}`}>
+                  <Info aria-hidden="true" size={17} weight="fill" />
+                  <span className="note-label">Why it changed</span><p>{entry.note}</p>
+                </div>
+              )}
+            </article>
+            {revealed && (
+              <div className="review-actions">
+                <button className="review-button" ref={actionRef} onClick={() => grade(true)} type="button">再练</button>
+                <button className="primary-button" onClick={() => grade(false)} type="button"><Check size={18} />会了</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </main>
+  );
+}
+
 export default function Home() {
   const [entries, setEntries] = useState<StudyEntry[]>([]);
   const [ready, setReady] = useState(false);
+  const [reviewEntries, setReviewEntries] = useState<StudyEntry[] | null>(null);
+  const reviewButtonRef = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState("全部");
   const [activeDate, setActiveDate] = useState<string | null>(null);
@@ -896,6 +1028,27 @@ export default function Home() {
     }
   };
 
+  const reviewCandidates = visibleEntries.filter(
+    (entry) => entry.kind === "comparison" && entry.changed.trim(),
+  );
+
+  const startReview = () => {
+    const shuffled = [...reviewCandidates];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    setDateMenuOpen(false);
+    setReviewEntries(shuffled);
+  };
+
+  if (reviewEntries) {
+    return <ReviewSession entries={reviewEntries} onClose={() => {
+      setReviewEntries(null);
+      window.requestAnimationFrame(() => reviewButtonRef.current?.focus());
+    }} />;
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -982,6 +1135,16 @@ export default function Home() {
           ))}
         </div>
         <div className="filter-actions">
+          <button
+            className="review-start-button"
+            disabled={!ready || reviewCandidates.length === 0}
+            onClick={startReview}
+            ref={reviewButtonRef}
+            title={reviewCandidates.length ? `从当前筛选的 ${reviewCandidates.length} 条对照句中抽取，每轮最多 5 条` : "当前范围没有可复习的对照句"}
+            type="button"
+          >
+            <BookOpenText size={17} />复习模式
+          </button>
           <div className="date-filter" ref={dateFilterRef}>
             <button
               aria-controls="date-filter-menu"
