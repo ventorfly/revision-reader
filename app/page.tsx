@@ -415,8 +415,8 @@ function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onD
   onDelete: (entry: StudyEntry) => void;
   toast: string;
 }) {
-  const [roundQueue, setRound] = useState(() => entries.slice(0, 5));
-  const [remainingQueue, setRemaining] = useState(() => entries.slice(5));
+  const [roundQueue, setRound] = useState(() => entries.slice(0, 15));
+  const [remainingQueue, setRemaining] = useState(() => entries.slice(15));
   const [index, setIndex] = useState(0);
   const [revealedId, setRevealedId] = useState<string | null>(null);
   const [retryQueue, setRetry] = useState<StudyEntry[]>([]);
@@ -455,7 +455,7 @@ function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onD
   };
 
   const startRound = (items: StudyEntry[], rest: StudyEntry[]) => {
-    setRound(items.slice(0, 5));
+    setRound(items.slice(0, 15));
     setRemaining(rest);
     setRetry([]);
     setRevealedId(null);
@@ -472,7 +472,7 @@ function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onD
       <header className="review-topbar">
         <div className="brand">
           <div className="brand-mark"><BookOpenText size={22} /></div>
-          <div><h1>复习模式</h1><p>每轮最多 5 条 · 先回忆，再揭晓</p></div>
+          <div><h1>复习模式</h1><p>每轮最多 15 条 · 先回忆，再揭晓</p></div>
         </div>
         <button className="review-button" onClick={onClose} type="button">
           <X size={16} />退出复习
@@ -496,8 +496,8 @@ function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onD
                 </button>
               )}
               {remaining.length > 0 && (
-                <button className="review-button" onClick={() => startRound(remaining, [...remaining.slice(5), ...retry])} type="button">
-                  继续下一组（{Math.min(5, remaining.length)} 条）
+                <button className="review-button" onClick={() => startRound(remaining, [...remaining.slice(15), ...retry])} type="button">
+                  继续下一组（{Math.min(15, remaining.length)} 条）
                 </button>
               )}
               <button className="review-button" onClick={onClose} type="button">结束复习</button>
@@ -1420,7 +1420,7 @@ export default function Home() {
             disabled={!ready || reviewCandidates.length === 0}
             onClick={startReview}
             ref={reviewButtonRef}
-            title={reviewCandidates.length ? `从当前筛选的 ${reviewCandidates.length} 条对照句中抽取，每轮最多 5 条` : "当前范围没有可复习的对照句"}
+            title={reviewCandidates.length ? `从当前筛选的 ${reviewCandidates.length} 条对照句中抽取，每轮最多 15 条` : "当前范围没有可复习的对照句"}
             type="button"
           >
             <BookOpenText size={17} />复习模式
