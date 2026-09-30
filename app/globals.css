@@ -52,6 +52,10 @@
 .review-body .review-card { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .review-card .sentence-panel { display: block; min-width: 0; }
 .review-card .entry-meta { padding: 12px 32px; color: var(--muted); font-size: 12px; }
+.review-entry-actions { display: flex; align-items: center; gap: 8px; }
+.review-entry-action { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; }
+.review-entry-action:hover { color: var(--text); background: #252a34; }
+.review-entry-action.danger:hover { color: var(--original); border-color: var(--original-line); background: var(--original-soft); }
 .review-panel-label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 22px; }
 .review-panel-label.original-heading { color: var(--original); }
 .review-panel-label.changed-heading { color: var(--changed); }
