@@ -58,7 +58,7 @@ test("keeps the learning, local-storage, and responsive feature contracts", asyn
   assert.match(page, /changedAlternatives\.map/);
   assert.match(page, /className="changed-alternatives"/);
   assert.match(page, /sampleEntries/);
-  assert.match(page, /activeTag/);
+  assert.doesNotMatch(page, /className="tag-filters"/);
   assert.match(page, /activeDate/);
   assert.match(page, /type DateScope = "all" \| "today" \| "last7" \| "date"/);
   assert.match(page, /const \[dateScope, setDateScope\]/);
