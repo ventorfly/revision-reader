@@ -17,6 +17,7 @@ import {
   NotePencil,
   PencilSimple,
   Plus,
+  Tag,
   Trash,
   X,
 } from "@phosphor-icons/react";
@@ -1397,6 +1398,11 @@ export default function Home() {
       </header>
 
       <section className="filterbar" aria-label="筛选与排序">
+        <div className="all-filter">
+          <Tag aria-hidden="true" size={17} />
+          <button aria-pressed={!query && reviewFilter === "all" && dateScope === "all"}
+            onClick={clearFilters} type="button">全部</button>
+        </div>
         <div className="filter-actions">
           <label className="review-filter">
             <span className="visually-hidden">复习进度</span>
