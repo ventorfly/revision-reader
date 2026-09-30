@@ -406,26 +406,41 @@ function IconButton({
   );
 }
 
-function ReviewSession({ entries, onClose, onReview, toast }: {
+function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onDelete, toast }: {
   entries: StudyEntry[];
+  currentEntries: StudyEntry[];
   onClose: () => void;
   onReview: (id: string, status: ReviewRecord["status"]) => void;
+  onEdit: (entry: StudyEntry) => void;
+  onDelete: (entry: StudyEntry) => void;
   toast: string;
 }) {
-  const [round, setRound] = useState(() => entries.slice(0, 5));
-  const [remaining, setRemaining] = useState(() => entries.slice(5));
+  const [roundQueue, setRound] = useState(() => entries.slice(0, 5));
+  const [remainingQueue, setRemaining] = useState(() => entries.slice(5));
   const [index, setIndex] = useState(0);
-  const [revealed, setRevealed] = useState(false);
-  const [retry, setRetry] = useState<StudyEntry[]>([]);
+  const [revealedId, setRevealedId] = useState<string | null>(null);
+  const [retryQueue, setRetry] = useState<StudyEntry[]>([]);
   const [roundNumber, setRoundNumber] = useState(1);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const actionRef = useRef<HTMLButtonElement>(null);
+  // Keep the session order while reading fresh content and excluding removed cards.
+  const liveEntries = new Map(currentEntries
+    .filter((item) => item.kind === "comparison" && item.changed.trim())
+    .map((item) => [item.id, item]));
+  const resolveQueue = (queue: StudyEntry[]) => queue.flatMap((item) => {
+    const live = liveEntries.get(item.id);
+    return live ? [live] : [];
+  });
+  const round = resolveQueue(roundQueue);
+  const remaining = resolveQueue(remainingQueue);
+  const retry = resolveQueue(retryQueue);
   const entry = round[index];
+  const revealed = Boolean(entry && revealedId === entry.id);
   const complete = !entry;
 
   useEffect(() => {
     headingRef.current?.focus();
-  }, [index, roundNumber]);
+  }, [index, roundNumber, entry?.id]);
 
   useEffect(() => {
     if (revealed) actionRef.current?.focus({ preventScroll: true });
@@ -435,7 +450,7 @@ function ReviewSession({ entries, onClose, onReview, toast }: {
     if (!revealed || !entry) return;
     onReview(entry.id, again ? "again" : "known");
     if (again) setRetry((current) => [...current, entry]);
-    setRevealed(false);
+    setRevealedId(null);
     setIndex((current) => current + 1);
   };
 
@@ -443,7 +458,7 @@ function ReviewSession({ entries, onClose, onReview, toast }: {
     setRound(items.slice(0, 5));
     setRemaining(rest);
     setRetry([]);
-    setRevealed(false);
+    setRevealedId(null);
     setIndex(0);
     setRoundNumber((current) => current + 1);
   };
@@ -468,12 +483,12 @@ function ReviewSession({ entries, onClose, onReview, toast }: {
           <span>第 {roundNumber} 轮</span>
           <span>{complete ? `已完成 ${round.length} 条` : `第 ${index + 1} / ${round.length} 条`}</span>
         </div>
-        <progress aria-label="本轮复习进度" max={round.length} value={index} />
+        <progress aria-label="本轮复习进度" max={Math.max(1, round.length)} value={index} />
         {complete ? (
           <section className="review-complete">
             <Check size={36} className="review-success" />
-            <h2 ref={headingRef} tabIndex={-1}>这一轮完成了</h2>
-            <p>本轮会了 {round.length - retry.length} 条，还有 {retry.length} 条想再练。</p>
+            <h2 ref={headingRef} tabIndex={-1}>{round.length ? "这一轮完成了" : "本轮已没有可复习的句子"}</h2>
+            <p>{round.length ? `本轮会了 ${round.length - retry.length} 条，还有 ${retry.length} 条想再练。` : "可以继续下一组，或结束复习。"}</p>
             <div className="review-actions">
               {retry.length > 0 && (
                 <button className="primary-button" onClick={() => startRound(retry, remaining)} type="button">
@@ -496,7 +511,17 @@ function ReviewSession({ entries, onClose, onReview, toast }: {
             </h2>
             <p className="review-caption">有些原句本身也正确。意思符合、表达正确即可，不必逐字一致。</p>
             <article className="comparison-card review-card" key={`${roundNumber}-${entry.id}`}>
-              <div className="entry-meta"><time dateTime={entry.createdAt}>{entry.createdAt}</time></div>
+              <div className="entry-meta">
+                <time dateTime={entry.createdAt}>{entry.createdAt}</time>
+                <div className="review-entry-actions">
+                  <button className="review-entry-action" aria-label="编辑这组句子" onClick={() => onEdit(entry)} type="button">
+                    <PencilSimple size={16} />编辑
+                  </button>
+                  <button className="review-entry-action danger" aria-label="删除这组句子" onClick={() => onDelete(entry)} type="button">
+                    <Trash size={16} />删除
+                  </button>
+                </div>
+              </div>
               <div className="sentence-panel original-panel">
                 <span className="review-panel-label original-heading">Original · 我的原句</span>
                 {primaryDiff ? <HighlightedSentence segments={primaryDiff.left} side="left" /> : (
@@ -514,7 +539,7 @@ function ReviewSession({ entries, onClose, onReview, toast }: {
                 ) : (
                   <div className="review-covered">
                     <span>答案和备注已隐藏</span>
-                    <button className="primary-button" onClick={() => setRevealed(true)} type="button">显示答案</button>
+                    <button className="primary-button" onClick={() => setRevealedId(entry.id)} type="button">显示答案</button>
                     <small>先自己说一句，再点击揭晓</small>
                   </div>
                 )}
@@ -1072,15 +1097,246 @@ export default function Home() {
     setReviewEntries(shuffled);
   };
 
+  const entryModal = modalOpen && (
+        <div
+          aria-label={
+            editingId
+              ? form.kind === "knowledge"
+                ? "编辑知识点"
+                : "编辑错句"
+              : form.kind === "knowledge"
+                ? "新增知识点"
+                : "新增错句"
+          }
+          aria-modal="true"
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setModalOpen(false);
+          }}
+          role="dialog"
+        >
+          <form className="entry-modal" onSubmit={submitEntry}>
+            <div className="modal-header">
+              <div className="modal-title-block">
+                <span className="modal-kicker">
+                  {editingId ? "EDIT ENTRY" : "NEW ENTRY"}
+                </span>
+                <div className="modal-title-row">
+                  <h2>
+                    {editingId
+                      ? form.kind === "knowledge"
+                        ? "编辑知识点"
+                        : "编辑这一组"
+                      : form.kind === "knowledge"
+                        ? "新增知识点"
+                        : "新增一组错句"}
+                  </h2>
+                  <div
+                    aria-label="记录类型"
+                    className="entry-type-toggle"
+                    role="group"
+                  >
+                    <button
+                      aria-pressed={form.kind === "comparison"}
+                      className={form.kind === "comparison" ? "active" : ""}
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          kind: "comparison",
+                        }))
+                      }
+                      type="button"
+                    >
+                      错句对照
+                    </button>
+                    <button
+                      aria-pressed={form.kind === "knowledge"}
+                      className={form.kind === "knowledge" ? "active" : ""}
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          kind: "knowledge",
+                        }))
+                      }
+                      type="button"
+                    >
+                      知识点
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <IconButton label="关闭" onClick={() => setModalOpen(false)}>
+                <X size={20} />
+              </IconButton>
+            </div>
+
+            {form.kind === "knowledge" ? (
+              <label className="sentence-field knowledge-field">
+                <span>
+                  <i aria-hidden="true" />
+                  Knowledge point
+                </span>
+                <textarea
+                  autoFocus
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      original: event.target.value,
+                    }))
+                  }
+                  placeholder="输入想要记录的知识点…"
+                  required
+                  value={form.original}
+                />
+              </label>
+            ) : (
+              <div className="modal-pair">
+                <label className="sentence-field original-field">
+                  <span>
+                    <i aria-hidden="true" />
+                    Original
+                  </span>
+                  <textarea
+                    autoFocus
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        original: event.target.value,
+                      }))
+                    }
+                    placeholder="输入你原来写错的句子…"
+                    required
+                    value={form.original}
+                  />
+                </label>
+                <label className="sentence-field changed-field">
+                  <span>
+                    <i aria-hidden="true" />
+                    Changed
+                  </span>
+                  <textarea
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        changed: event.target.value,
+                      }))
+                    }
+                    placeholder="输入改正后的句子…"
+                    required
+                    value={form.changed}
+                  />
+                </label>
+              </div>
+            )}
+
+            <label className="note-field">
+              <span>
+                <NotePencil size={17} />
+                {form.kind === "knowledge"
+                  ? "解释、例句或备注"
+                  : "错误原因或备注"}{" "}
+                <small>可选</small>
+              </span>
+              <textarea
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    note: event.target.value,
+                  }))
+                }
+                placeholder={
+                  form.kind === "knowledge"
+                    ? "补充解释、例句或使用场景…"
+                    : "例如：第三人称单数后面的动词需要加 -s"
+                }
+                value={form.note}
+              />
+            </label>
+
+            <div className="form-details">
+              <fieldset>
+                <legend>标签</legend>
+                <div className="tag-options">
+                  {DEFAULT_TAGS.map((tagName) => (
+                    <button
+                      aria-pressed={form.tags.includes(tagName)}
+                      className={form.tags.includes(tagName) ? "selected" : ""}
+                      key={tagName}
+                      onClick={() => toggleFormTag(tagName)}
+                      type="button"
+                    >
+                      {form.tags.includes(tagName) && (
+                        <Check size={13} weight="bold" />
+                      )}
+                      {tagName}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  aria-label="自定义标签"
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      customTags: event.target.value,
+                    }))
+                  }
+                  placeholder="自定义标签，用逗号分隔"
+                  value={form.customTags}
+                />
+              </fieldset>
+              <label className="date-field">
+                <span>日期</span>
+                <input
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      createdAt: event.target.value,
+                    }))
+                  }
+                  required
+                  type="date"
+                  value={form.createdAt}
+                />
+              </label>
+            </div>
+
+            <div className="modal-footer">
+              <span>
+                {form.kind === "knowledge"
+                  ? "保存后将以知识点卡片显示"
+                  : "保存后会自动高亮两边的不同内容"}
+              </span>
+              <div>
+                <button
+                  className="secondary-button"
+                  onClick={() => setModalOpen(false)}
+                  type="button"
+                >
+                  取消
+                </button>
+                <button className="primary-button" type="submit">
+                  <Check size={18} weight="bold" />
+                  {editingId
+                    ? "保存修改"
+                    : form.kind === "knowledge"
+                      ? "加入知识点"
+                      : "加入错句本"}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      );
+
   if (reviewEntries) {
-    return <ReviewSession entries={reviewEntries} toast={toast} onReview={(id, status) => {
+    return <><ReviewSession entries={reviewEntries} currentEntries={entries} onEdit={openEditEntry} onDelete={deleteEntry} toast={toast} onReview={(id, status) => {
       const reviewedAt = new Date().toISOString();
       setEntries((current) => current.map((entry) => entry.id === id
         ? { ...entry, review: { status, reviewedAt } } : entry));
     }} onClose={() => {
       setReviewEntries(null);
       window.requestAnimationFrame(() => reviewButtonRef.current?.focus());
-    }} />;
+    }} />{entryModal}</>;
   }
 
   return (
@@ -1503,236 +1759,7 @@ export default function Home() {
         </div>
       </section>
 
-      {modalOpen && (
-        <div
-          aria-label={
-            editingId
-              ? form.kind === "knowledge"
-                ? "编辑知识点"
-                : "编辑错句"
-              : form.kind === "knowledge"
-                ? "新增知识点"
-                : "新增错句"
-          }
-          aria-modal="true"
-          className="modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setModalOpen(false);
-          }}
-          role="dialog"
-        >
-          <form className="entry-modal" onSubmit={submitEntry}>
-            <div className="modal-header">
-              <div className="modal-title-block">
-                <span className="modal-kicker">
-                  {editingId ? "EDIT ENTRY" : "NEW ENTRY"}
-                </span>
-                <div className="modal-title-row">
-                  <h2>
-                    {editingId
-                      ? form.kind === "knowledge"
-                        ? "编辑知识点"
-                        : "编辑这一组"
-                      : form.kind === "knowledge"
-                        ? "新增知识点"
-                        : "新增一组错句"}
-                  </h2>
-                  <div
-                    aria-label="记录类型"
-                    className="entry-type-toggle"
-                    role="group"
-                  >
-                    <button
-                      aria-pressed={form.kind === "comparison"}
-                      className={form.kind === "comparison" ? "active" : ""}
-                      onClick={() =>
-                        setForm((current) => ({
-                          ...current,
-                          kind: "comparison",
-                        }))
-                      }
-                      type="button"
-                    >
-                      错句对照
-                    </button>
-                    <button
-                      aria-pressed={form.kind === "knowledge"}
-                      className={form.kind === "knowledge" ? "active" : ""}
-                      onClick={() =>
-                        setForm((current) => ({
-                          ...current,
-                          kind: "knowledge",
-                        }))
-                      }
-                      type="button"
-                    >
-                      知识点
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <IconButton label="关闭" onClick={() => setModalOpen(false)}>
-                <X size={20} />
-              </IconButton>
-            </div>
-
-            {form.kind === "knowledge" ? (
-              <label className="sentence-field knowledge-field">
-                <span>
-                  <i aria-hidden="true" />
-                  Knowledge point
-                </span>
-                <textarea
-                  autoFocus
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      original: event.target.value,
-                    }))
-                  }
-                  placeholder="输入想要记录的知识点…"
-                  required
-                  value={form.original}
-                />
-              </label>
-            ) : (
-              <div className="modal-pair">
-                <label className="sentence-field original-field">
-                  <span>
-                    <i aria-hidden="true" />
-                    Original
-                  </span>
-                  <textarea
-                    autoFocus
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        original: event.target.value,
-                      }))
-                    }
-                    placeholder="输入你原来写错的句子…"
-                    required
-                    value={form.original}
-                  />
-                </label>
-                <label className="sentence-field changed-field">
-                  <span>
-                    <i aria-hidden="true" />
-                    Changed
-                  </span>
-                  <textarea
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        changed: event.target.value,
-                      }))
-                    }
-                    placeholder="输入改正后的句子…"
-                    required
-                    value={form.changed}
-                  />
-                </label>
-              </div>
-            )}
-
-            <label className="note-field">
-              <span>
-                <NotePencil size={17} />
-                {form.kind === "knowledge"
-                  ? "解释、例句或备注"
-                  : "错误原因或备注"}{" "}
-                <small>可选</small>
-              </span>
-              <textarea
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    note: event.target.value,
-                  }))
-                }
-                placeholder={
-                  form.kind === "knowledge"
-                    ? "补充解释、例句或使用场景…"
-                    : "例如：第三人称单数后面的动词需要加 -s"
-                }
-                value={form.note}
-              />
-            </label>
-
-            <div className="form-details">
-              <fieldset>
-                <legend>标签</legend>
-                <div className="tag-options">
-                  {DEFAULT_TAGS.map((tagName) => (
-                    <button
-                      aria-pressed={form.tags.includes(tagName)}
-                      className={form.tags.includes(tagName) ? "selected" : ""}
-                      key={tagName}
-                      onClick={() => toggleFormTag(tagName)}
-                      type="button"
-                    >
-                      {form.tags.includes(tagName) && (
-                        <Check size={13} weight="bold" />
-                      )}
-                      {tagName}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  aria-label="自定义标签"
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      customTags: event.target.value,
-                    }))
-                  }
-                  placeholder="自定义标签，用逗号分隔"
-                  value={form.customTags}
-                />
-              </fieldset>
-              <label className="date-field">
-                <span>日期</span>
-                <input
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      createdAt: event.target.value,
-                    }))
-                  }
-                  required
-                  type="date"
-                  value={form.createdAt}
-                />
-              </label>
-            </div>
-
-            <div className="modal-footer">
-              <span>
-                {form.kind === "knowledge"
-                  ? "保存后将以知识点卡片显示"
-                  : "保存后会自动高亮两边的不同内容"}
-              </span>
-              <div>
-                <button
-                  className="secondary-button"
-                  onClick={() => setModalOpen(false)}
-                  type="button"
-                >
-                  取消
-                </button>
-                <button className="primary-button" type="submit">
-                  <Check size={18} weight="bold" />
-                  {editingId
-                    ? "保存修改"
-                    : form.kind === "knowledge"
-                      ? "加入知识点"
-                      : "加入错句本"}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )}
+      {entryModal}
 
       {toast && (
         <div className="toast" role="status">
