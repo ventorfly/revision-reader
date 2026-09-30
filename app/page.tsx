@@ -17,7 +17,6 @@ import {
   NotePencil,
   PencilSimple,
   Plus,
-  Tag,
   Trash,
   X,
 } from "@phosphor-icons/react";
@@ -572,7 +571,6 @@ export default function Home() {
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const reviewButtonRef = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
-  const [activeTag, setActiveTag] = useState("全部");
   const [activeDate, setActiveDate] = useState<string | null>(null);
   const [dateScope, setDateScope] = useState<DateScope>("all");
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
@@ -719,14 +717,6 @@ export default function Home() {
     return () => window.clearInterval(interval);
   }, []);
 
-  const allTags = useMemo(
-    () =>
-      Array.from(
-        new Set([...DEFAULT_TAGS, ...entries.flatMap((entry) => entry.tags)]),
-      ),
-    [entries],
-  );
-
   const dateOptions = useMemo(() => {
     const counts = new Map<string, number>();
     entries.forEach((entry) => {
@@ -799,7 +789,6 @@ export default function Home() {
         if (reviewFilter === "reviewed") return Boolean(entry.review);
         return entry.review?.status === reviewFilter;
       })
-      .filter((entry) => activeTag === "全部" || entry.tags.includes(activeTag))
       .filter((entry) =>
         matchesDateScope(
           entry.createdAt,
@@ -829,7 +818,6 @@ export default function Home() {
       .map(({ entry }) => entry);
   }, [
     activeDate,
-    activeTag,
     dateScope,
     entries,
     lastSevenStart,
@@ -857,7 +845,6 @@ export default function Home() {
   const clearFilters = () => {
     setReviewFilter("all");
     setQuery("");
-    setActiveTag("全部");
     setActiveDate(null);
     setDateScope("all");
   };
@@ -1410,20 +1397,6 @@ export default function Home() {
       </header>
 
       <section className="filterbar" aria-label="筛选与排序">
-        <div className="tag-filters">
-          <Tag aria-hidden="true" size={17} />
-          {["全部", ...allTags].map((tagName) => (
-            <button
-              aria-pressed={activeTag === tagName}
-              className={activeTag === tagName ? "active" : ""}
-              key={tagName}
-              onClick={() => setActiveTag(tagName)}
-              type="button"
-            >
-              {tagName}
-            </button>
-          ))}
-        </div>
         <div className="filter-actions">
           <label className="review-filter">
             <span className="visually-hidden">复习进度</span>
@@ -1673,7 +1646,7 @@ export default function Home() {
                           {entry.tags.map((tagName) => (
                             <button
                               key={tagName}
-                              onClick={() => setActiveTag(tagName)}
+                              onClick={() => setQuery(tagName)}
                               type="button"
                             >
                               {tagName}

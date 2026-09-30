@@ -416,26 +416,6 @@ textarea:focus-visible {
   padding: 7px 24px;
 }
 
-.tag-filters {
-  align-items: center;
-  display: flex;
-  gap: 7px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.tag-filters::-webkit-scrollbar {
-  display: none;
-}
-
-.tag-filters > svg {
-  color: var(--subtle);
-  flex: 0 0 auto;
-  margin-right: 3px;
-}
-
-.tag-filters button,
 .entry-tags button {
   background: transparent;
   border: 1px solid transparent;
@@ -446,13 +426,6 @@ textarea:focus-visible {
   font-size: 12px;
   height: 28px;
   padding: 0 10px;
-}
-
-.tag-filters button:hover,
-.tag-filters button.active {
-  background: #191d27;
-  border-color: #313846;
-  color: #e1e4ea;
 }
 
 .filter-actions {
