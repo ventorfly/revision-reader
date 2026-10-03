@@ -28,10 +28,18 @@
 
 .review-progress-row {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
   color: var(--muted);
   font-size: 13px;
 }
+
+.review-undo { background: transparent; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px; }
+.review-undo:hover:not(:disabled) { color: var(--text); background: var(--surface); }
+.review-undo:disabled { opacity: 0.4; cursor: default; }
+.review-undo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .review-body progress {
   appearance: none;
