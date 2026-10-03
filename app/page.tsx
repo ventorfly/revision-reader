@@ -31,7 +31,8 @@ import {
   useState,
 } from "react";
 
-type ReviewRecord = { status: "known" | "again"; reviewedAt: string };
+import { createReview, gradeReview, nextReviewRound, restoreReview, undoReview,
+  REVIEW_SESSION_KEY, type ReviewRecord, type SavedReview } from "./review-session";
 type ReviewFilter = "all" | "unseen" | "reviewed" | ReviewRecord["status"];
 
 type StudyEntry = {
@@ -406,37 +407,25 @@ function IconButton({
   );
 }
 
-function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onDelete, toast }: {
-  entries: StudyEntry[];
+function ReviewSession({ session, currentEntries, onClose, onFinish, onReview, onReveal, onRound, onUndo, onEdit, onDelete, toast }: {
+  session: SavedReview;
   currentEntries: StudyEntry[];
   onClose: () => void;
-  onReview: (id: string, status: ReviewRecord["status"]) => void;
+  onFinish: () => void;
+  onReview: (status: ReviewRecord["status"]) => void;
+  onReveal: () => void;
+  onRound: (retry: boolean) => void;
+  onUndo: () => void;
   onEdit: (entry: StudyEntry) => void;
   onDelete: (entry: StudyEntry) => void;
   toast: string;
 }) {
-  const [roundQueue, setRound] = useState(() => entries.slice(0, 15));
-  const [remainingQueue, setRemaining] = useState(() => entries.slice(15));
-  const [index, setIndex] = useState(0);
-  const [revealedId, setRevealedId] = useState<string | null>(null);
-  const [retryQueue, setRetry] = useState<StudyEntry[]>([]);
-  const [roundNumber, setRoundNumber] = useState(1);
-  const headingRef = useRef<HTMLHeadingElement>(null);
-  const actionRef = useRef<HTMLButtonElement>(null);
-  // Keep the session order while reading fresh content and excluding removed cards.
-  const liveEntries = new Map(currentEntries
-    .filter((item) => item.kind === "comparison" && item.changed.trim())
-    .map((item) => [item.id, item]));
-  const resolveQueue = (queue: StudyEntry[]) => queue.flatMap((item) => {
-    const live = liveEntries.get(item.id);
-    return live ? [live] : [];
-  });
-  const round = resolveQueue(roundQueue);
-  const remaining = resolveQueue(remainingQueue);
-  const retry = resolveQueue(retryQueue);
-  const entry = round[index];
+  const { index, roundNumber, revealedId, roundIds: round, remainingIds: remaining, retryIds: retry } = session.position;
+  const entry = currentEntries.find((item) => item.id === round[index]);
   const revealed = Boolean(entry && revealedId === entry.id);
   const complete = !entry;
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const actionRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -445,23 +434,6 @@ function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onD
   useEffect(() => {
     if (revealed) actionRef.current?.focus({ preventScroll: true });
   }, [revealed]);
-
-  const grade = (again: boolean) => {
-    if (!revealed || !entry) return;
-    onReview(entry.id, again ? "again" : "known");
-    if (again) setRetry((current) => [...current, entry]);
-    setRevealedId(null);
-    setIndex((current) => current + 1);
-  };
-
-  const startRound = (items: StudyEntry[], rest: StudyEntry[]) => {
-    setRound(items.slice(0, 15));
-    setRemaining(rest);
-    setRetry([]);
-    setRevealedId(null);
-    setIndex(0);
-    setRoundNumber((current) => current + 1);
-  };
 
   const alternatives = entry ? splitChangedAlternatives(entry.changed) : [];
   const primaryDiff = entry && revealed
@@ -475,12 +447,13 @@ function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onD
           <div><h1>复习模式</h1><p>每轮最多 15 条 · 先回忆，再揭晓</p></div>
         </div>
         <button className="review-button" onClick={onClose} type="button">
-          <X size={16} />退出复习
+          <X size={16} />保存并退出
         </button>
       </header>
       <div className="review-body">
         <div className="review-progress-row">
           <span>第 {roundNumber} 轮</span>
+          <button className="review-undo" disabled={!session.undo} onClick={onUndo} type="button">撤销上一步</button>
           <span>{complete ? `已完成 ${round.length} 条` : `第 ${index + 1} / ${round.length} 条`}</span>
         </div>
         <progress aria-label="本轮复习进度" max={Math.max(1, round.length)} value={index} />
@@ -491,18 +464,18 @@ function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onD
             <p>{round.length ? `本轮会了 ${round.length - retry.length} 条，还有 ${retry.length} 条想再练。` : "可以继续下一组，或结束复习。"}</p>
             <div className="review-actions">
               {retry.length > 0 && (
-                <button className="primary-button" onClick={() => startRound(retry, remaining)} type="button">
+                <button className="primary-button" onClick={() => onRound(true)} type="button">
                   重练这 {retry.length} 条
                 </button>
               )}
               {remaining.length > 0 && (
-                <button className="review-button" onClick={() => startRound(remaining, [...remaining.slice(15), ...retry])} type="button">
+                <button className="review-button" onClick={() => onRound(false)} type="button">
                   继续下一组（{Math.min(15, remaining.length)} 条）
                 </button>
               )}
-              <button className="review-button" onClick={onClose} type="button">结束复习</button>
+              <button className="review-button" onClick={onFinish} type="button">结束复习</button>
             </div>
-            <p className="review-caption">复习记录会自动保存。退出后可在「复习进度」中查看和筛选。</p>
+            <p className="review-caption">位置和复习记录会自动保存。保存并退出后可继续本次复习；结束复习将清除本次位置。</p>
           </section>
         ) : (
           <>
@@ -539,7 +512,7 @@ function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onD
                 ) : (
                   <div className="review-covered">
                     <span>答案和备注已隐藏</span>
-                    <button className="primary-button" onClick={() => setRevealedId(entry.id)} type="button">显示答案</button>
+                    <button className="primary-button" onClick={onReveal} type="button">显示答案</button>
                     <small>先自己说一句，再点击揭晓</small>
                   </div>
                 )}
@@ -553,8 +526,8 @@ function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onD
             </article>
             {revealed && (
               <div className="review-actions">
-                <button className="review-button" ref={actionRef} onClick={() => grade(true)} type="button">再练</button>
-                <button className="primary-button" onClick={() => grade(false)} type="button"><Check size={18} />会了</button>
+                <button className="review-button" ref={actionRef} onClick={() => onReview("again")} type="button">再练</button>
+                <button className="primary-button" onClick={() => onReview("known")} type="button"><Check size={18} />会了</button>
               </div>
             )}
           </>
@@ -568,7 +541,9 @@ function ReviewSession({ entries, currentEntries, onClose, onReview, onEdit, onD
 export default function Home() {
   const [entries, setEntries] = useState<StudyEntry[]>([]);
   const [ready, setReady] = useState(false);
-  const [reviewEntries, setReviewEntries] = useState<StudyEntry[] | null>(null);
+  const [savedReview, setSavedReview] = useState<SavedReview | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const reviewSession = useMemo(() => restoreReview(savedReview, entries), [savedReview, entries]);
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const reviewButtonRef = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
@@ -621,7 +596,13 @@ export default function Home() {
       }
 
       if (!active) return;
-      setEntries(restoredEntries ?? sampleEntries);
+      const restored = restoredEntries ?? sampleEntries;
+      setEntries(restored);
+      try {
+        setSavedReview(restoreReview(JSON.parse(window.localStorage.getItem(REVIEW_SESSION_KEY) ?? "null"), restored));
+      } catch {
+        setSavedReview(null);
+      }
       setReady(true);
       if (recoveredFromBackup) {
         setToast("已从最近的自动备份恢复");
@@ -667,6 +648,17 @@ export default function Home() {
       setToast("本地保存失败，请立即导出备份文件");
     }
   }, [entries, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      if (reviewSession) window.localStorage.setItem(REVIEW_SESSION_KEY, JSON.stringify(reviewSession));
+      else window.localStorage.removeItem(REVIEW_SESSION_KEY);
+    } catch {
+      const timeout = window.setTimeout(() => setToast("复习位置保存失败，请暂时不要关闭软件"), 0);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [reviewSession, ready]);
 
   useEffect(() => {
     if (!toast) return;
@@ -1076,13 +1068,15 @@ export default function Home() {
   );
 
   const startReview = () => {
+    if (reviewSession && !window.confirm("重新开始复习会替换上次的复习位置，已保存的会了 / 再练记录会保留。确定重新开始吗？")) return;
     const shuffled = [...reviewCandidates];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     setDateMenuOpen(false);
-    setReviewEntries(shuffled);
+    setSavedReview(createReview(shuffled.map((entry) => entry.id)));
+    setReviewOpen(true);
   };
 
   const entryModal = modalOpen && (
@@ -1316,15 +1310,34 @@ export default function Home() {
         </div>
       );
 
-  if (reviewEntries) {
-    return <><ReviewSession entries={reviewEntries} currentEntries={entries} onEdit={openEditEntry} onDelete={deleteEntry} toast={toast} onReview={(id, status) => {
-      const reviewedAt = new Date().toISOString();
-      setEntries((current) => current.map((entry) => entry.id === id
-        ? { ...entry, review: { status, reviewedAt } } : entry));
-    }} onClose={() => {
-      setReviewEntries(null);
+  if (reviewOpen && reviewSession) {
+    const closeReview = () => {
+      setReviewOpen(false);
       window.requestAnimationFrame(() => reviewButtonRef.current?.focus());
-    }} />{entryModal}</>;
+    };
+    return <><ReviewSession session={reviewSession} currentEntries={entries}
+      onEdit={openEditEntry} onDelete={deleteEntry} toast={toast}
+      onReview={(status) => {
+        const entry = entries.find((item) => item.id === reviewSession.position.roundIds[reviewSession.position.index]);
+        if (!entry) return;
+        const review = { status, reviewedAt: new Date().toISOString() };
+        const next = gradeReview(reviewSession, entry, review);
+        if (next === reviewSession) return;
+        setEntries((current) => current.map((item) => item.id === entry.id ? { ...item, review } : item));
+        setSavedReview(next);
+      }}
+      onReveal={() => setSavedReview({ ...reviewSession, position: { ...reviewSession.position,
+        revealedId: reviewSession.position.roundIds[reviewSession.position.index] ?? null } })}
+      onRound={(retry) => setSavedReview(nextReviewRound(reviewSession, retry))}
+      onUndo={() => {
+        const result = undoReview(reviewSession, entries);
+        if (!result) return;
+        setEntries(result.entries);
+        setSavedReview(result.session);
+        setToast("已撤销上一步，请重新选择");
+      }}
+      onClose={closeReview}
+      onFinish={() => { setSavedReview(null); closeReview(); }} />{entryModal}</>;
   }
 
   return (
@@ -1415,6 +1428,12 @@ export default function Home() {
               <option value="reviewed">已练过</option>
             </select>
           </label>
+          {reviewSession && (
+            <button className="review-start-button" onClick={() => { setDateMenuOpen(false); setReviewOpen(true); }} type="button"
+              title={`接着第 ${reviewSession.position.roundNumber} 轮复习，使用上次保存的范围`}>
+              继续复习
+            </button>
+          )}
           <button
             className="review-start-button"
             disabled={!ready || reviewCandidates.length === 0}
@@ -1423,7 +1442,7 @@ export default function Home() {
             title={reviewCandidates.length ? `从当前筛选的 ${reviewCandidates.length} 条对照句中抽取，每轮最多 15 条` : "当前范围没有可复习的对照句"}
             type="button"
           >
-            <BookOpenText size={17} />复习模式
+            <BookOpenText size={17} />{reviewSession ? "重新开始" : "复习模式"}
           </button>
           <div className="date-filter" ref={dateFilterRef}>
             <button
